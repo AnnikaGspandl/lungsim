@@ -25,7 +25,7 @@ module indices
        ne_radius_out,ne_radius_out0,ne_group,ne_Qdot
   ! indices for unit_field
   integer :: num_nu,nu_vol,nu_comp,nu_conc2,nu_Vdot0,nu_Vdot1, &
-       nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_conc1,nu_vent,&
+       nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl,nu_conc1,nu_vent,&
        nu_vd,nu_perf,nu_blood_press
   !indices for gas exchange field
 ! indices for gasex_field
@@ -56,7 +56,7 @@ public num_ne,ne_radius,ne_length,ne_vol,&
       ne_radius_out0,ne_group,ne_Qdot
 
 public num_nu,nu_vol,nu_comp, nu_conc2,nu_Vdot0,nu_Vdot1, &
-       nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,&
+       nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl, &
        nu_conc1,nu_vent,nu_vd,&
        nu_perf,nu_blood_press
 
@@ -216,7 +216,7 @@ contains
     ne_Vdot0=7 !air flow, last timestep
     ne_dvdt=8
     ! indices for unit_field
-    num_nu=10
+    num_nu=13 ! number of unit fields
     nu_vol=1
     nu_comp=2
     nu_Vdot0=3
@@ -227,6 +227,10 @@ contains
     nu_vt=8
     nu_air_press=9
     nu_vent=10
+    nu_rad=11 ! Radius
+    nu_SA=12 ! Surface area of elastic unit
+    nu_ppl=13 ! Pleural pressure
+
     call enter_exit(sub_name,2)
   end subroutine ventilation_indices
 !

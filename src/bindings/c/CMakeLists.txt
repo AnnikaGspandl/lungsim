@@ -7,6 +7,7 @@ set(C_FORTRAN_LIB_SRCS
     exports.f90
     filenames.f90
     field_utilities.f90
+    filtration.f90
     gas_exchange.f90
     gasmix.f90
     geometry.f90
@@ -24,6 +25,7 @@ set(C_C_LIB_SRCS
     exports.c
     filenames.c
     field_utilities.c
+    filtration.c
     gas_exchange.c
     gasmix.c
     geometry.c
@@ -43,6 +45,7 @@ set(C_LIB_HDRS
   exports.h
   filenames.h
   field_utilities.h
+  filtration.h
   gas_exchange.h
   gasmix.h
   geometry.h

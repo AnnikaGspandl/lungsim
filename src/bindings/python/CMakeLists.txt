@@ -28,6 +28,7 @@ set(INTERFACE_SRCS
   ../interface/exports.i
   ../interface/filenames.i
   ../interface/field_utilities.i
+  ../interface/filtration.i
   ../interface/gas_exchange.i
   ../interface/gasmix.i
   ../interface/geometry.i

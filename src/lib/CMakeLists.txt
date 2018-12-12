@@ -7,6 +7,7 @@ set(LIB_SRCS
   exports.f90
   filenames.f90
   field_utilities.f90
+  filtration.f90
   gas_exchange.f90
   gasmix.f90
   geometry.f90
