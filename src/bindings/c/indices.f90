@@ -56,7 +56,26 @@ contains
 #endif
 
   end subroutine perfusion_indices_c
+!
+!######################################################################
+!
+  ! Filtration Indices
+  subroutine filtration_indices_c() bind(C, name="filtration_indices_c")
+  
+    use indices, only: filtration_indices
+    implicit none
+    
+#if defined _WIN32 && defined __INTEL_COMPILER
+    call so_filtration_indices()
+#else
+    call filtration_indices()
+#endif
 
+  end subroutine filtration_indices_c
+  
+!
+!######################################################################
+!
   function get_ne_radius_c() result(res) bind(C, name="get_ne_radius_c")
 
     use indices, only: get_ne_radius

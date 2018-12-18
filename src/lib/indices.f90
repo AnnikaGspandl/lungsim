@@ -22,7 +22,7 @@ module indices
   integer ::num_ne,ne_radius,ne_length,ne_vol,&
       ne_resist,ne_t_resist,ne_Vdot,ne_Vdot0,ne_a_A,&
        ne_dvdt,ne_radius_in,ne_radius_in0,&
-       ne_radius_out,ne_radius_out0,ne_group,ne_Qdot
+       ne_radius_out,ne_radius_out0,ne_group,ne_unit,ne_Qdot
   ! indices for unit_field
   integer :: num_nu,nu_vol,nu_comp,nu_conc2,nu_Vdot0,nu_Vdot1, &
        nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl,nu_conc1,nu_vent,&
@@ -53,7 +53,7 @@ public num_nj,nj_aw_press,nj_bv_press, nj_conc1,nj_conc2
 public num_ne,ne_radius,ne_length,ne_vol,&
       ne_resist,ne_t_resist,ne_Vdot,ne_Vdot0,ne_a_A,&
       ne_dvdt,ne_radius_in,ne_radius_in0,ne_radius_out,&
-      ne_radius_out0,ne_group,ne_Qdot
+      ne_radius_out0,ne_group,ne_unit,ne_Qdot
 
 public num_nu,nu_vol,nu_comp, nu_conc2,nu_Vdot0,nu_Vdot1, &
        nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl, &
@@ -69,7 +69,7 @@ public model_type
 
 !Interfaces
 private
-public define_problem_type,ventilation_indices, perfusion_indices, get_ne_radius, get_nj_conc1
+public define_problem_type,ventilation_indices, perfusion_indices, get_ne_radius, get_nj_conc1, filtration_indices
 
 contains
 
@@ -104,11 +104,16 @@ contains
       case('grow_tree')
         print *, 'You are solving a growing problem, setting up indices'
         call growing_indices
+      case('filtration')
+        print *, 'You are solving a filtration model, setting up indices'
+        call filtration_indices
     end select
     model_type=TRIM(PROBLEM_TYPE)
     call enter_exit(sub_name,2)
   end subroutine define_problem_type
-
+!
+!########################################################################
+!
   !>Gas mixing indices
   subroutine exchange_indices
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_GASMIX_INDICES" :: GASMIX_INDICES
@@ -148,7 +153,9 @@ contains
 
     call enter_exit(sub_name,2)
   end subroutine exchange_indices
-
+!
+!########################################################################
+!
   !>Gas mixing indices
   subroutine gasmix_indices
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_GASMIX_INDICES" :: GASMIX_INDICES
@@ -190,7 +197,9 @@ contains
     nu_vent=11
     call enter_exit(sub_name,2)
   end subroutine gasmix_indices
-
+!
+!########################################################################
+!
   !> Ventilation indices
   subroutine ventilation_indices
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_VENTILATION_INDICES" :: VENTILATION_INDICES
@@ -275,7 +284,7 @@ contains
     num_nj=1
     nj_bv_press=1 !pressure in blood vessel
     ! indices for elem_field
-    num_ne=9
+    num_ne=10
     ne_radius=1 !strained average radius over whole element
     ne_radius_in=2 !strained radius into an element
     ne_radius_out=3 !strained radius out of an element
@@ -285,14 +294,76 @@ contains
     ne_Qdot=7 !flow in an element
     ne_resist=8 !resistance of a blood vessel
     ne_group=9!Groups vessels into arteries (field=0), capillaries (field=1) and veins(field=2)
+    ne_unit=10
     !indices for units
     num_nu=2
     nu_perf=1
     nu_blood_press=2
 
      call enter_exit(sub_name,2)
-  end subroutine perfusion_indices
+  end subroutine perfusion_indices  
+!
+!########################################################################
+!
+  ! Filtration Indices
+  subroutine filtration_indices
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_FILTRATION_INDICES" :: FILTRATION_INDICES
 
+    use diagnostics, only: enter_exit
+    implicit none
+    character(len=60) :: sub_name
+
+    sub_name = 'filtration_indices'
+    call enter_exit(sub_name,1)
+    ! indices for elem_ordrs. These dont usually change.
+    ! indices for node_field
+    num_nj=2 !number of nodal fields
+    nj_bv_press=1 !perfusion: pressure in blood vessel
+    nj_aw_press=2 !ventilation: air pressure
+    ! indices for elem_field
+    num_ne=15 !number of element fields
+    ne_radius=1 !radius of airway/blood vessel
+    ne_length=2 !length of airway/blood vessel
+    ne_resist=3 !resistance of airway/blood vessel
+    !Ventilation
+    ne_vol=4 !volume
+    ne_t_resist=5
+    ne_Vdot=6 !Air flow, current time step
+    ne_Vdot0=7 !air flow, last timestep
+    ne_dvdt=8 
+    !Perfusion
+    ne_radius_in=9 !strained radius into an element
+    ne_radius_out=10 !strained radius out of an element
+    ne_radius_in0=11!unstrained radius into an element
+    ne_radius_out0=12!unstrained radius out of an element
+    ne_Qdot=13 !flow in an element
+    ne_group=14!Groups vessels into arteries (field=0), capillaries (field=1) and veins(field=2)
+    ne_unit=15
+    ! indices for unit_field
+    num_nu=15 ! number of unit fields
+    !Ventilation
+    nu_vol=1
+    nu_comp=2
+    nu_Vdot0=3
+    nu_Vdot1=4
+    nu_Vdot2=5
+    nu_dpdt=6
+    nu_pe=7
+    nu_vt=8
+    nu_air_press=9
+    nu_vent=10
+    nu_rad=11 ! Radius
+    nu_SA=12 ! Surface area of elastic unit
+    nu_ppl=13 ! Pleural pressure
+    !Perfusion
+    nu_perf=14
+    nu_blood_press=15
+    
+    call enter_exit(sub_name,2)
+  end subroutine filtration_indices
+!
+!########################################################################
+!
   function get_ne_radius() result(res)
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_GET_NE_RADIUS" :: GET_NE_RADIUS
 
@@ -309,7 +380,9 @@ contains
 
     call enter_exit(sub_name,2)
   end function get_ne_radius
-
+!
+!########################################################################
+!
   function get_nj_conc1() result(res)
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_GET_NJ_CONC1" :: GET_NJ_CONC1
 

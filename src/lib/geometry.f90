@@ -342,6 +342,7 @@ contains
          nindex=no_hord
          elem_ordrs(nindex,ne1)=elem_ordrs(nindex,ne_m)
          elem_field(ne_group,ne1)=1.0_dp!connection between meshes
+         elem_field(ne_unit,ne1) = nu
        enddo
         print *, 'Number of connections', cap_term
      endif

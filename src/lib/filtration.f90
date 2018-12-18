@@ -33,10 +33,12 @@ module filtration
   ! Assumptions:    - L_p, sigma, pi_c, pi_alv = constant over time & over whole lung
   !                 - Fluid flow in alveoli (no interstitial space)
   !                 - Thickness of fluid layer in alveoli increases -> ball sheet  
-  subroutine calculate_flow(L_p,sigma,pi_c,pi_alv,c_L)  
+  subroutine calculate_flow(L_p,sigma,pi_c,pi_alv,c_L)!,mesh_type,grav_dirn,grav_factor,bc_type,inlet_bc,outlet_bc)  
     !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_CALCULATE_FLOW" :: CALCULATE_FLOW
   
     use diagnostics, only: enter_exit
+    use pressure_resistance_flow
+    use indices!, only: num_ne
     implicit none
     
     ! In-/Output
@@ -45,25 +47,45 @@ module filtration
     real(dp),intent(in) :: pi_c    ! Capillary osmotic pressure in mmH2O
     real(dp),intent(in) :: pi_alv  ! Alveolar fluid osmotic pressure in mmH2O
     real(dp),intent(in) :: c_L     ! Lymphatic clearance/ flow in ml/(min*100g)
+    ! Inputs for Perfusion Model
+    !real(dp) :: grav_factor,inlet_bc,outlet_bc
+    !integer :: grav_dirn
+    !character(len=60) :: mesh_type,bc_type
     
     ! local variables
-    
     character(len=60) :: sub_name
     
     ! ###########################################################################
     
     !sub_name = 'calculate_flow'
     call enter_exit(sub_name,1)
-       
-    write(*,*) "Call SR evaluate_vent_edema"
-    call evaluate_vent_edema
+    
+    write(*,*) "Printing node filtration_indices from indices.f90"
+    write(*,*) nj_bv_press,nj_aw_press,num_nj
+    
+    write(*,*) "Printing element filtration_indices from indices.f90"
+    write(*,*)  ne_radius,ne_length,ne_resist,ne_vol,ne_t_resist,ne_Vdot,&
+                ne_Vdot0,ne_dvdt,ne_radius_in,ne_radius_out,ne_radius_in0,&
+                ne_radius_out0,ne_Qdot,ne_group,ne_unit,num_ne
+    
+    write(*,*) "Printing unit filtration_indices from indices.f90"
+    write(*,*)  nu_vol,nu_comp,nu_Vdot0,nu_Vdot1,nu_Vdot2,nu_dpdt,nu_pe,nu_vt,&
+                nu_air_press,nu_vent,nu_rad,nu_SA,nu_ppl,nu_perf,nu_blood_press,num_nu
+ 
+    
+    write(*,*) "Call SR evaluate_prq_edema from perfusion model"
+    call evaluate_prq_edema!(mesh_type,grav_dirn,grav_factor,bc_type,inlet_bc,outlet_bc)
+    
+    !write(*,*) "Call SR evaluate_vent_edema"
+    !call evaluate_vent_edema
        
     call enter_exit(sub_name,2)
     
   end subroutine calculate_flow
-   
-
+  
+  
 !!!###################################################################################
+!!!################################ventilation########################################
 !*evaluate_vent_edema:* Sets up and solves venilation model
   subroutine evaluate_vent_edema
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_VENT_EDEMA" :: EVALUATE_VENT_EDEMA
@@ -84,6 +106,7 @@ module filtration
          RMinMean,sum_dpmus,sum_dpmus_ei,sum_expid,sum_tidal,Texpn,T_interval,&
          time,Tinsp,totalc,Tpass,ttime,undef,volume_target,volume_tree,WOBe,&
          WOBr,WOBe_insp,WOBr_insp,WOB_insp
+    real(dp) :: ppl_edema(num_units)
     real(dp), allocatable :: check_vol(:)
     character :: expiration_type*(10)
     logical :: CONTINUE,converged
@@ -175,7 +198,7 @@ module filtration
     call tissue_compliance_edema(chest_wall_compliance,undef)
     totalc = SUM(unit_field(nu_comp,1:num_units)) !the total model compliance
 
-    call update_pleural_pressure_edema(ppl_current) !calculate new pleural pressure
+    call update_mean_pleural_pressure_edema(ppl_current) !calculate new pleural pressure
     pptrans=SUM(unit_field(nu_pe,1:num_units))/num_units
 
     ChestWallRestVol = init_vol + 0.2e+6_dp/98.0665_dp * (-ppl_current)
@@ -306,7 +329,7 @@ module filtration
           call update_elem_field_edema  !update element lengths, volumes, resistances
           call tissue_compliance_edema(chest_wall_compliance,undef) !update the unit compliances, uses 'undef' as input
           totalc = SUM(unit_field(nu_comp,1:num_units)) !the total model compliance
-          call update_pleural_pressure_edema(ppl_current) !calculate new pleural pressure
+          call update_mean_pleural_pressure_edema(ppl_current) !calculate new pleural pressure
           call update_proximal_pressure_edema !updates values of pressure at proximal nodes of end branches
           call calculate_work_edema(now_vol-init_vol,now_vol-last_vol,WOBe,WOBr,pptrans)!calculate work of breathing
           last_vol=now_vol
@@ -321,22 +344,24 @@ module filtration
           if(n.GT.1)then
             if(check_vol(n-1).LT.0.1_dp)then
                 
+                write(*,*) "Filtration calculated in this breath :"
+                
           ! Get filtration surface area SA in mm^2
-          call update_surface_area_edema
+                call update_surface_area_edema
 
-    
+          ! Get pleural pressure Ppl
+                call update_pleural_pressure_edema(ppl_edema)
+                write(*,*) "Ppl for unit 1, 100, 1000, 10000: ", ppl_edema(1), ppl_edema(100), ppl_edema(1000), ppl_edema(10000)
+                write(*,*) "Pel for unit 1, 100, 1000, 10000: ", unit_field(nu_pe,1), unit_field(nu_pe,100), unit_field(nu_pe,1000), unit_field(nu_pe,10000)
+                write(*,*) "Ppl_current = average Ppl in all units: ", ppl_current
+                
           ! Get capillary hydrostatic pressure P_c in mmH2O (-> perfusion model)
-          !   call evaluate_PRQ(mesh_type,grav_dirn,grav_factor,bc_type,inlet_bc,outlet_bc)
+          !call evaluate_PRQ(mesh_type,grav_dirn,grav_factor,bc_type,inlet_bc,outlet_bc)
     
                 
           ! Calculate transcapillary fluid flow J_v according to Starling Equation in m^3/s
           ! J_v = L_p * S * ((P_c - P_alv) - sigma * (pi_c - pi_alv))
                 
-                ! Test Output exemplary for one unit (200) to see wether P_alv and P_el are accessible
-                pleural = unit_field(nu_pe,200) + node_field(nj_aw_press,200)
-                write(*,*) "If n>1 and volume converged in last breath -> this is the last breath, where Filtration is calculated"
-                write(*,*) "P_alv, P_el for unit 200" 
-                write(*,*) unit_field(nu_air_press,200), unit_field(nu_pe,200)
                 
             endif   
           endif
@@ -377,15 +402,6 @@ module filtration
        !...  CHECK WHETHER TO CONTINUE     
        check_vol(n) = DABS(100.0_dp*(volume_target-sum_tidal)/volume_target)
        write(*,*) "check_vol for this breath calculated"
-       write(*,*) check_vol
-       write(*,*) "sum_tidal:"
-       write(*,*) sum_tidal
-       write(*,*) "elem_field(ne_Vdot,1), unit_field(ne_Vdot,1), unit_field(nu_Vdot,1) :"
-       write(*,*) elem_field(ne_Vdot,1)
-       write(*,*) unit_field(nu_vt,1)
-       write(*,*) unit_field(nu_Vdot0,1)
-       write(*,*) "Dritte Wurzel aus 27:"
-       write(*,*) 9**(1/2)
        if(n.ge.num_brths)then
           CONTINUE=.FALSE.
        elseif(DABS(volume_target).GT.1.0e-3_dp)THEN
@@ -906,7 +922,7 @@ module filtration
 
 !!!###################################################################################
 
-  subroutine update_pleural_pressure_edema(ppl_current)
+  subroutine update_mean_pleural_pressure_edema(ppl_current)
   !!! Update the mean pleural pressure based on current Pel (=Ptp) and Palv,
   !!! i.e. Ppl(unit) = -Pel(unit)+Palv(unit)
     use arrays,only: dp,elem_nodes,node_field,num_units,units,unit_field
@@ -921,7 +937,7 @@ module filtration
 
     ! ###########################################################################
 
-    sub_name = 'update_pleural_pressure_edema'
+    sub_name = 'update_mean_pleural_pressure_edema'
     call enter_exit(sub_name,1)
 
     ppl_current = 0.0_dp
@@ -935,10 +951,44 @@ module filtration
 
     call enter_exit(sub_name,2)
 
-  end subroutine update_pleural_pressure_edema  
+  end subroutine update_mean_pleural_pressure_edema  
 
 !!!###################################################################################
 
+!!!###################################################################################
+
+  subroutine update_pleural_pressure_edema(ppl_edema)
+  !!! Update the leural pressure based on current Pel (=Ptp) and Palv,
+  !!! i.e. Ppl(unit) = -Pel(unit)+Palv(unit)
+    use arrays,only: dp,elem_nodes,node_field,num_units,units,unit_field
+    use diagnostics, only: enter_exit
+    use indices,only: nj_aw_press,nu_pe,nu_ppl
+    implicit none
+
+    real(dp),intent(out) :: ppl_edema(num_units)
+    integer :: ne,np2,nunit
+
+    character(len=60) :: sub_name
+
+    ! ###########################################################################
+
+    sub_name = 'update_pleural_pressure_edema'
+    call enter_exit(sub_name,1)
+
+    do nunit=1,num_units
+       ne=units(nunit)
+       np2=elem_nodes(2,ne)
+       unit_field(nu_ppl,nunit) = - unit_field(nu_pe,nunit) + &
+            node_field(nj_aw_press,np2)
+       ppl_edema(nunit) = unit_field(nu_ppl,nunit)
+    enddo !noelem
+
+    call enter_exit(sub_name,2)
+
+  end subroutine update_pleural_pressure_edema 
+
+!!!###################################################################################
+  
   subroutine update_proximal_pressure_edema
     use arrays,only: elem_nodes,node_field,num_units,units,unit_field
     use indices,only: nj_aw_press,nu_air_press
@@ -990,14 +1040,14 @@ module filtration
        ! calculate inner radius for each unit
        unit_field(nu_rad,nunit) = (3/(4*PI) * unit_field(nu_vol,nunit))**(1.0/3.0)
 
-       write(*,*) "Radius unit nu"
-       write(*,*) unit_field(nu_rad,nunit)
+       !write(*,*) "Radius unit nu"
+       !write(*,*) unit_field(nu_rad,nunit)
        
        ! calculate surface area for each unit
        unit_field(nu_SA,nunit) = 4.0 * PI * unit_field(nu_rad,nunit)**2.0
        
-       write(*,*) "Surface area unit nu"
-       write(*,*) unit_field(nu_SA,nunit)
+       !write(*,*) "Surface area unit nu"
+       !write(*,*) unit_field(nu_SA,nunit)
        
     enddo !nounit
 
@@ -1077,7 +1127,7 @@ module filtration
 
   end subroutine update_unit_volume_edema
 
-!###################################################################################
-
+!!!#################################################################################
+  
   
 end module filtration
