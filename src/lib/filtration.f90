@@ -351,8 +351,10 @@ module filtration
 
           ! Get pleural pressure Ppl
                 call update_pleural_pressure_edema(ppl_edema)
-                write(*,*) "Ppl for unit 1, 100, 1000, 10000: ", ppl_edema(1), ppl_edema(100), ppl_edema(1000), ppl_edema(10000)
-                write(*,*) "Pel for unit 1, 100, 1000, 10000: ", unit_field(nu_pe,1), unit_field(nu_pe,100), unit_field(nu_pe,1000), unit_field(nu_pe,10000)
+                write(*,*) "Ppl for unit 1, 100, 1000, 10000: ", ppl_edema(1),&
+                 ppl_edema(100), ppl_edema(1000), ppl_edema(10000)
+                write(*,*) "Pel for unit 1, 100, 1000, 10000: ", unit_field(nu_pe,1),&
+                 unit_field(nu_pe,100), unit_field(nu_pe,1000), unit_field(nu_pe,10000)
                 write(*,*) "Ppl_current = average Ppl in all units: ", ppl_current
                 
           ! Get capillary hydrostatic pressure P_c in mmH2O (-> perfusion model)
