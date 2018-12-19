@@ -21,8 +21,8 @@ void define_rad_from_geom_c(const char *order_system, int *order_system_len, dou
                             const char *group_type, int *group_type_len, const char *group_options, int *group_options_len);
 void element_connectivity_1d_c();
 void evaluate_ordering_c();
-void set_initial_volume_c(int *Gdirn, double *COV, double *total_volume, double *Rmax, double *Rmin);
-void volume_of_mesh_c(double *volume_model, double *volume_tree);
+void set_initial_volume_c(int *Gdirn, double *COV, double *total_volume, double *Rmax, double *Rmin, int *coupled);
+void volume_of_mesh_c(double *volume_model, double *volume_tree, int *coupled);
 
 void add_mesh(const char *AIRWAY_MESHFILE)
 {
@@ -124,12 +124,12 @@ void evaluate_ordering()
   evaluate_ordering_c();
 }
 
-void set_initial_volume(int Gdirn, double COV, double total_volume, double Rmax, double Rmin)
+void set_initial_volume(int Gdirn, double COV, double total_volume, double Rmax, double Rmin, int coupled)
 {
-  set_initial_volume_c(&Gdirn, &COV, &total_volume, &Rmax, &Rmin);
+  set_initial_volume_c(&Gdirn, &COV, &total_volume, &Rmax, &Rmin, &coupled);
 }
 
-void volume_of_mesh(double *volume_model, double *volume_tree)
+void volume_of_mesh(double *volume_model, double *volume_tree, int *coupled)
 {
-  volume_of_mesh_c(volume_model, volume_tree);
+  volume_of_mesh_c(volume_model, volume_tree, coupled);
 }

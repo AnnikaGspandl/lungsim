@@ -360,7 +360,7 @@ contains
   subroutine append_units()
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_APPEND_UNITS" :: APPEND_UNITS
     use arrays,only: dp, elem_cnct,elem_symmetry,elem_units_below,&
-         num_elems,num_units,units,unit_field
+         num_elems,num_units,units,units_vent,unit_field
     use indices,only: num_nu
     use diagnostics, only: enter_exit
     implicit none
@@ -381,8 +381,10 @@ contains
     if(allocated(units))then !increasing the array size; just overwrite
        deallocate(units)
        deallocate(unit_field)
+       deallocate(units_vent)
     endif
     allocate(units(num_units))
+    allocate(units_vent(num_units))
     allocate(unit_field(num_nu,num_units))
 
     unit_field=0.0_dp
@@ -393,6 +395,7 @@ contains
     DO ne=1,num_elems
        IF(elem_cnct(1,0,ne).eq.0)THEN
           nu=nu+1
+          units_vent(nu) = ne
           units(nu)=ne     !Set up units array containing terminals
           elem_units_below(ne)=1
        ENDIF
@@ -1528,7 +1531,8 @@ contains
   subroutine define_rad_from_geom(ORDER_SYSTEM, CONTROL_PARAM, START_FROM, START_RAD, group_type_in, group_option_in)
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_DEFINE_RAD_FROM_GEOM" :: DEFINE_RAD_FROM_GEOM
     use arrays,only: dp,num_elems,elem_field,elem_ordrs,maxgen,elem_cnct
-    use indices,only: ne_radius, ne_radius_in, ne_radius_out, no_sord, no_hord
+    use indices,only: ne_radius, ne_radius_in, ne_radius_out, no_sord, no_hord,&
+      ne_vol, ne_a_A, ne_aw_radius, ne_length
     use diagnostics, only: enter_exit
     implicit none
    character(LEN=100), intent(in) :: ORDER_SYSTEM,START_FROM
@@ -1551,7 +1555,7 @@ contains
     else!default to all
       group_type='all'
     endif
-    if(group_type.eq.'all')then
+    if(group_type.eq.'all'.or.group_type.eq.'airway')then
        ne_min=1
        ne_max=num_elems
     elseif(group_type.eq.'efield')then
@@ -1595,6 +1599,15 @@ contains
         elem_field(ne_radius_out,ne)=radius
      endif
     enddo
+    if(group_type.eq.'airway')then
+      do ne = ne_min,ne_max
+         elem_field(ne_aw_radius,ne)=elem_field(ne_radius,ne)
+                ! element volume
+         elem_field(ne_vol,ne) = PI * elem_field(ne_radius,ne)**2 * &
+            elem_field(ne_length,ne)
+         elem_field(ne_a_A,ne) = 1.0_dp ! set default for ratio a/A
+      enddo
+    endif
 
     call enter_exit(sub_name,2)
 
@@ -2049,18 +2062,19 @@ contains
 !>*set_initial_volume:* assigns a volume to terminal units appended on a tree structure
 !>based on an assumption of a linear gradient in the gravitational direction with max
 !> min and COV values defined.
-  subroutine set_initial_volume(Gdirn,COV,total_volume,Rmax,Rmin)
+  subroutine set_initial_volume(Gdirn,COV,total_volume,Rmax,Rmin,coupled)
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_SET_INITIAL_VOLUME" :: SET_INITIAL_VOLUME
 
     use arrays,only: dp,elem_nodes,elem_units_below,&
-         node_xyz,num_elems,num_units,units,unit_field
+         node_xyz,num_elems,num_elems_aw,num_units,units,unit_field
     use indices,only: nu_vol,nu_vt
     use diagnostics, only: enter_exit
     implicit none
 
     !     Parameter List
-    integer,intent(in) :: Gdirn
+    integer,intent(in) :: Gdirn,coupled
     real(dp),intent(in) :: COV,total_volume,Rmax,Rmin
+
     !     Local parameters
     integer :: ne,np2,nunit
     real(dp) ::  factor_adjust,max_z,min_z,random_number,range_z,&
@@ -2073,7 +2087,7 @@ contains
     volume_estimate = 1.0_dp
     volume_of_tree = 0.0_dp
 
-    call volume_of_mesh(volume_estimate,volume_of_tree)
+    call volume_of_mesh(volume_estimate,volume_of_tree,coupled)
 
     random_number=-1.1_dp
 
@@ -2106,13 +2120,17 @@ contains
     enddo !nunit
 
     ! correct unit volumes such that total volume is exactly as specified
-    call volume_of_mesh(volume_estimate,volume_of_tree)
+    call volume_of_mesh(volume_estimate,volume_of_tree,coupled)
     factor_adjust = (total_volume-volume_of_tree)/(volume_estimate-volume_of_tree)
     do nunit=1,num_units
        unit_field(nu_vol,nunit) = unit_field(nu_vol,nunit)*factor_adjust
     enddo
+    if(coupled.eq.0) then
+      write(*,'('' Number of elements is '',I7)') num_elems
+    else
+      write(*,'('' Number of elements is '',I7)') num_elems_aw
+    endif
 
-    write(*,'('' Number of elements is '',I5)') num_elems
     write(*,'('' Initial volume is '',F6.2,'' L'')') total_volume/1.0e+6_dp
     write(*,'('' Deadspace volume is '',F6.1,'' mL'')') volume_of_tree/1.0e+3_dp
 
@@ -2124,15 +2142,16 @@ contains
 !###################################################################################
 !
 !*volume_of_mesh:* calculates the volume of an airway mesh including conducting and respiratory airways
-  subroutine volume_of_mesh(volume_model,volume_tree)
+  subroutine volume_of_mesh(volume_model,volume_tree,coupled)
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_VOLUME_OF_MESH" :: VOLUME_OF_MESH
     use arrays,only: dp,elem_cnct,elem_field,elem_symmetry,&
-         num_elems,num_units,units,unit_field
+         num_elems,num_elems_aw,num_units,units,unit_field
     use indices,only: ne_vol,nu_vol
     use diagnostics, only: enter_exit
     implicit none
 
     real(dp) :: volume_model,volume_tree
+    integer :: coupled
     !     Local Variables
     integer :: ne,ne0,nunit
     real(dp),allocatable :: vol_anat(:),vol_below(:)
@@ -2151,12 +2170,20 @@ contains
        ne=units(nunit)
        vol_below(ne) = vol_below(ne) + unit_field(nu_vol,nunit) !add elastic unit volume
     enddo !nunit
+    if(coupled.eq.0)then
+      do ne=num_elems,2,-1
+         ne0=elem_cnct(-1,1,ne)
+         vol_anat(ne0) = vol_anat(ne0) + DBLE(elem_symmetry(ne))*vol_anat(ne)
+         vol_below(ne0) = vol_below(ne0) + DBLE(elem_symmetry(ne))*vol_below(ne)
+      enddo !noelem
+    else
+      do ne=num_elems_aw,2,-1
+         ne0=elem_cnct(-1,1,ne)
+         vol_anat(ne0) = vol_anat(ne0) + DBLE(elem_symmetry(ne))*vol_anat(ne)
+         vol_below(ne0) = vol_below(ne0) + DBLE(elem_symmetry(ne))*vol_below(ne)
+      enddo !noele
+    endif
 
-    do ne=num_elems,2,-1
-       ne0=elem_cnct(-1,1,ne)
-       vol_anat(ne0) = vol_anat(ne0) + DBLE(elem_symmetry(ne))*vol_anat(ne)
-       vol_below(ne0) = vol_below(ne0) + DBLE(elem_symmetry(ne))*vol_below(ne)
-    enddo !noelem
 
     volume_model = vol_below(1)
     volume_tree = vol_anat(1)
