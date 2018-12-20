@@ -22,7 +22,8 @@ module indices
   integer ::num_ne,ne_radius,ne_length,ne_vol,&
       ne_resist,ne_t_resist,ne_Vdot,ne_Vdot0,ne_a_A,&
        ne_dvdt,ne_radius_in,ne_radius_in0,&
-       ne_radius_out,ne_radius_out0,ne_group,ne_unit,ne_Qdot
+       ne_radius_out,ne_radius_out0,ne_group,ne_unit,ne_Qdot,&
+       ne_aw_radius, ne_aw_resist
   ! indices for unit_field
   integer :: num_nu,nu_vol,nu_comp,nu_conc2,nu_Vdot0,nu_Vdot1, &
        nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl,nu_conc1,nu_vent,&
@@ -53,7 +54,8 @@ public num_nj,nj_aw_press,nj_bv_press, nj_conc1,nj_conc2
 public num_ne,ne_radius,ne_length,ne_vol,&
       ne_resist,ne_t_resist,ne_Vdot,ne_Vdot0,ne_a_A,&
       ne_dvdt,ne_radius_in,ne_radius_in0,ne_radius_out,&
-      ne_radius_out0,ne_group,ne_unit,ne_Qdot
+      ne_radius_out0,ne_group,ne_unit,ne_Qdot, &
+      ne_aw_radius, ne_aw_resist
 
 public num_nu,nu_vol,nu_comp, nu_conc2,nu_Vdot0,nu_Vdot1, &
        nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl, &
@@ -215,15 +217,16 @@ contains
     num_nj=2 !number of nodal fields
     nj_aw_press=2 !air pressure
     ! indices for elem_field
-    num_ne=8 !number of element fields
-    ne_radius=1 !radius of airway
-    ne_length=2 !length of airway
-    ne_vol=3 !volume
-    ne_resist=4 !resistance of airway
-    ne_t_resist=5
-    ne_Vdot=6 !Air flow, current time step
-    ne_Vdot0=7 !air flow, last timestep
-    ne_dvdt=8
+    num_ne=9 !number of element fields
+    ne_radius=1 !radius of blood vessel
+    ne_radius = 2 !radius of airway
+    ne_length=3 !length of airway
+    ne_vol=4 !volume
+    ne_resist=5 !resistance of airway
+    ne_t_resist=6
+    ne_Vdot=7 !Air flow, current time step
+    ne_Vdot0=8 !air flow, last timestep
+    ne_dvdt=9
     ! indices for unit_field
     num_nu=13 ! number of unit fields
     nu_vol=1
@@ -321,10 +324,10 @@ contains
     nj_bv_press=1 !perfusion: pressure in blood vessel
     nj_aw_press=2 !ventilation: air pressure
     ! indices for elem_field
-    num_ne=15 !number of element fields
-    ne_radius=1 !radius of airway/blood vessel
+    num_ne=17 !number of element fields
+    ne_aw_radius=1 !radius of airway
     ne_length=2 !length of airway/blood vessel
-    ne_resist=3 !resistance of airway/blood vessel
+    ne_aw_resist=3 !resistance of airway
     !Ventilation
     ne_vol=4 !volume
     ne_t_resist=5
@@ -332,13 +335,15 @@ contains
     ne_Vdot0=7 !air flow, last timestep
     ne_dvdt=8 
     !Perfusion
-    ne_radius_in=9 !strained radius into an element
-    ne_radius_out=10 !strained radius out of an element
-    ne_radius_in0=11!unstrained radius into an element
-    ne_radius_out0=12!unstrained radius out of an element
-    ne_Qdot=13 !flow in an element
-    ne_group=14!Groups vessels into arteries (field=0), capillaries (field=1) and veins(field=2)
-    ne_unit=15
+    ne_radius = 9
+    ne_resist = 10
+    ne_radius_in=11 !strained radius into an element
+    ne_radius_out=12 !strained radius out of an element
+    ne_radius_in0=13!unstrained radius into an element
+    ne_radius_out0=14!unstrained radius out of an element
+    ne_Qdot=15 !flow in an element
+    ne_group=16!Groups vessels into arteries (field=0), capillaries (field=1) and veins(field=2)
+    ne_unit=17
     ! indices for unit_field
     num_nu=15 ! number of unit fields
     !Ventilation

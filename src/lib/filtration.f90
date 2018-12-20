@@ -37,6 +37,7 @@ module filtration
     !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_CALCULATE_FLOW" :: CALCULATE_FLOW
   
     use diagnostics, only: enter_exit
+    use arrays, only: num_elems,num_elems_aw,elem_field
     use pressure_resistance_flow
     use indices!, only: num_ne
     implicit none
@@ -53,6 +54,7 @@ module filtration
     !character(len=60) :: mesh_type,bc_type
     
     ! local variables
+    integer :: ne
     character(len=60) :: sub_name
     
     ! ###########################################################################
@@ -64,7 +66,7 @@ module filtration
     write(*,*) nj_bv_press,nj_aw_press,num_nj
     
     write(*,*) "Printing element filtration_indices from indices.f90"
-    write(*,*)  ne_radius,ne_length,ne_resist,ne_vol,ne_t_resist,ne_Vdot,&
+    write(*,*)  ne_aw_radius,ne_length,ne_resist,ne_vol,ne_t_resist,ne_Vdot,&
                 ne_Vdot0,ne_dvdt,ne_radius_in,ne_radius_out,ne_radius_in0,&
                 ne_radius_out0,ne_Qdot,ne_group,ne_unit,num_ne
     
@@ -72,11 +74,18 @@ module filtration
     write(*,*)  nu_vol,nu_comp,nu_Vdot0,nu_Vdot1,nu_Vdot2,nu_dpdt,nu_pe,nu_vt,&
                 nu_air_press,nu_vent,nu_rad,nu_SA,nu_ppl,nu_perf,nu_blood_press,num_nu
  
-    
+    num_elems_aw = 0
+    do ne=1,num_elems
+      if(elem_field(ne_group,ne).eq.0.0_dp)then !Artery or airway
+        num_elems_aw = num_elems_aw + 1
+      endif
+    enddo
+    write(*,*) num_elems_aw
+
     write(*,*) "Call SR evaluate_prq_edema from perfusion model"
     call evaluate_prq_edema!(mesh_type,grav_dirn,grav_factor,bc_type,inlet_bc,outlet_bc)
     
-    !write(*,*) "Call SR evaluate_vent_edema"
+    write(*,*) "Call SR evaluate_vent_edema"
     !call evaluate_vent_edema
        
     call enter_exit(sub_name,2)
@@ -89,7 +98,7 @@ module filtration
 !*evaluate_vent_edema:* Sets up and solves venilation model
   subroutine evaluate_vent_edema
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_VENT_EDEMA" :: EVALUATE_VENT_EDEMA
-    use arrays,only: dp,elem_field,elem_units_below,node_field,num_elems,num_units,units,unit_field
+    use arrays,only: dp,elem_field,elem_units_below,node_field,num_elems,num_elems_aw,num_units,units_vent,unit_field
     use indices!,only: ne_Vdot,ne_Vdot0,ne_t_resist,nj_aw_press,nu_air_press,nu_comp,nu_dpdt,nu_pe,nu_rad,nu_SA,nu_vt
     use exports,only: export_1d_elem_field,export_terminal_solution
     use other_consts !PI
@@ -98,7 +107,7 @@ module filtration
     implicit none
 
     ! Local variables
-    integer :: Gdirn,iter_step,n,ne,num_brths,num_itns,nunit
+    integer :: Gdirn,iter_step,n,ne,num_brths,num_itns,nunit,count_aw
     real(dp) :: pleural,ChestWallRestVol,chest_wall_compliance,constrict,COV,&
          dpmus,dt,endtime,err_est,err_tol,FRC,i_to_e_ratio,init_vol,&
          last_vol,now_vol,Pcw,p_mus,pmus_factor_in,pmus_factor_ex,pmus_step,&
@@ -165,6 +174,7 @@ module filtration
 !!! set default values for the parameters that control the breathing simulation
 !!! these should be controlled by user input (showing hard-coded for now)
 
+
     call read_params_evaluate_flow_edema(Gdirn, chest_wall_compliance, &
        constrict, COV, FRC, i_to_e_ratio, pmus_step, press_in,&
        refvol, RMaxMean, RMinMean, T_interval, volume_target, expiration_type)
@@ -180,14 +190,14 @@ module filtration
 !!! store initial branch lengths, radii, resistance etc. in array 'elem_field'
     call update_elem_field_edema
 
-    call volume_of_mesh(init_vol,volume_tree) ! to get deadspace volume
+    call volume_of_mesh(init_vol,volume_tree,1) ! to get deadspace volume
 
 !!! distribute the initial tissue unit volumes along the gravitational axis.
-    call set_initial_volume(Gdirn,COV,FRC*1.0e+6_dp,RMaxMean,RMinMean)
+    call set_initial_volume(Gdirn,COV,FRC*1.0e+6_dp,RMaxMean,RMinMean,1)
     undef = refvol * (FRC*1.0e+6_dp-volume_tree)/DBLE(elem_units_below(1))
 
 !!! calculate the total model volume
-    call volume_of_mesh(init_vol,volume_tree)
+    call volume_of_mesh(init_vol,volume_tree,1)
 
     write(*,'('' Anatomical deadspace = '',F8.3,'' ml'')') volume_tree/1.0e+3_dp ! in mL
     write(*,'('' Respiratory volume   = '',F8.3,'' L'')') (init_vol-volume_tree)/1.0e+6_dp !in L
@@ -304,7 +314,7 @@ module filtration
 !!! the pressures throughout the tree.
 
           !initialise Qinit to the previous flow
-          elem_field(ne_Vdot0,1:num_elems) = elem_field(ne_Vdot,1:num_elems)
+          elem_field(ne_Vdot0,1:num_elems_aw) = elem_field(ne_Vdot,1:num_elems_aw)
           converged = .FALSE.
           iter_step=0
           do while (.not.converged)
@@ -325,7 +335,7 @@ module filtration
           enddo !converged
 
           call update_unit_volume_edema(dt,Tinsp,Texpn) ! Update tissue unit volumes, and unit tidal volumes
-          call volume_of_mesh(now_vol,volume_tree) !calculate the mesh volume, store in 'now_vol'
+          call volume_of_mesh(now_vol,volume_tree,1) !calculate the mesh volume, store in 'now_vol'
           call update_elem_field_edema  !update element lengths, volumes, resistances
           call tissue_compliance_edema(chest_wall_compliance,undef) !update the unit compliances, uses 'undef' as input
           totalc = SUM(unit_field(nu_comp,1:num_units)) !the total model compliance
@@ -351,8 +361,10 @@ module filtration
 
           ! Get pleural pressure Ppl
                 call update_pleural_pressure_edema(ppl_edema)
-                write(*,*) "Ppl for unit 1, 100, 1000, 10000: ", ppl_edema(1), ppl_edema(100), ppl_edema(1000), ppl_edema(10000)
-                write(*,*) "Pel for unit 1, 100, 1000, 10000: ", unit_field(nu_pe,1), unit_field(nu_pe,100), unit_field(nu_pe,1000), unit_field(nu_pe,10000)
+                write(*,*) "Ppl for unit 1, 100, 1000, 10000: ", ppl_edema(1),&
+                 ppl_edema(100), ppl_edema(1000), ppl_edema(10000)
+                write(*,*) "Pel for unit 1, 100, 1000, 10000: ", unit_field(nu_pe,1),&
+                 unit_field(nu_pe,100), unit_field(nu_pe,1000), unit_field(nu_pe,10000)
                 write(*,*) "Ppl_current = average Ppl in all units: ", ppl_current
                 
           ! Get capillary hydrostatic pressure P_c in mmH2O (-> perfusion model)
@@ -433,11 +445,11 @@ module filtration
 !!! Transfer the tidal volume for each elastic unit to the terminal branches, and sum up the tree.
 !!! Divide by inlet flow. This gives the time-averaged and normalised flow field for the tree.
     do nunit=1,num_units !for each terminal element only (with tissue units attached)
-       ne=units(nunit) !local element number
+       ne=units_vent(nunit) !local element number
        elem_field(ne_Vdot,ne) = unit_field(nu_vt,nunit)
     enddo
     call sum_elem_field_from_periphery_edema(ne_Vdot)
-    elem_field(ne_Vdot,1:num_elems) = elem_field(ne_Vdot,1:num_elems)/elem_field(ne_Vdot,1)
+    elem_field(ne_Vdot,1:num_elems_aw) = elem_field(ne_Vdot,1:num_elems_aw)/elem_field(ne_Vdot,1)
 
 !    call export_terminal_solution(TERMINAL_EXNODEFILE,'terminals')
 
@@ -449,7 +461,7 @@ module filtration
 
   subroutine calculate_work_edema(breath_vol,dt_vol,WOBe,WOBr,pptrans)
     use arrays,only: dp,elem_nodes,node_field,&
-         num_units,units,unit_field
+         num_units,units_vent,unit_field
     use diagnostics, only: enter_exit
     use indices,only: nj_aw_press,nu_pe
     implicit none
@@ -469,7 +481,7 @@ module filtration
     !estimate elastic and resistive WOB for each dt (sum dP.V)
     p_trans=SUM(unit_field(nu_pe,1:num_units))/num_units
     do nunit=1,num_units
-       ne=units(nunit)
+       ne=units_vent(nunit)
        np1=elem_nodes(2,ne)
        p_resis=p_resis+node_field(nj_aw_press,1)-node_field(nj_aw_press,np1)
     enddo
@@ -488,9 +500,9 @@ module filtration
 
   subroutine estimate_flow_edema(dpmus,dt,err_est)
     use arrays,only: dp,elem_field,num_units,&
-         units,unit_field
+         units_vent,unit_field
     use diagnostics, only: enter_exit
-    use indices,only: ne_Vdot,ne_Vdot0,ne_resist,nu_comp,&
+    use indices,only: ne_Vdot,ne_Vdot0,ne_aw_resist,nu_comp,&
          nu_dpdt,nu_Vdot0,nu_Vdot1,nu_Vdot2
     implicit none
 
@@ -511,7 +523,7 @@ module filtration
     flow_sum = 0.0_dp
   !!! For each elastic unit, calculate Qbar (equation 4.13 from Swan thesis)
     do nunit=1,num_units !for each terminal element only (with tissue units attached)
-       ne=units(nunit) !local element number
+       ne=units_vent(nunit) !local element number
        ! Calculate the mean flow into the unit in the time step
        ! alpha is the rate of change of pressure at start node of terminal element
        alpha=unit_field(nu_dpdt,nunit) !dPaw/dt, initialised to zero and updated each iter
@@ -522,7 +534,7 @@ module filtration
        !      Q = C*(alpha-beta)+(Qinit-C*(alpha-beta))*DEXP(-dt/(C*R))
        Q = unit_field(nu_comp,nunit)*(alpha-beta)+ &
             (Qinit-unit_field(nu_comp,nunit)*(alpha-beta))* &
-            DEXP(-dt/(unit_field(nu_comp,nunit)*elem_field(ne_resist,ne)))
+            DEXP(-dt/(unit_field(nu_comp,nunit)*elem_field(ne_aw_resist,ne)))
 
        unit_field(nu_Vdot2,nunit)=unit_field(nu_Vdot1,nunit) !flow at iter-2
        unit_field(nu_Vdot1,nunit)=unit_field(nu_Vdot0,nunit) !flow at iter-1
@@ -739,7 +751,7 @@ module filtration
 !!!###################################################################################
 
   subroutine sum_elem_field_from_periphery_edema(ne_field)
-    use arrays,only: dp,elem_cnct,elem_field,elem_symmetry,num_elems
+    use arrays,only: dp,elem_cnct,elem_field,elem_symmetry,num_elems_aw
     use diagnostics, only: enter_exit
     implicit none
 
@@ -756,8 +768,8 @@ module filtration
     sub_name = 'sum_elem_field_from_periphery_edema'
     call enter_exit(sub_name,1)
 
-    do ne=num_elems,1,-1
-       if(elem_cnct(1,0,ne).gt.0)then !not terminal
+    do ne=num_elems_aw,1,-1
+       if(elem_cnct(1,0,ne).ne.1.or.ne.lt.70)then !not terminal
           field_value=0.d0
           do i=1,elem_cnct(1,0,ne) !for each possible daughter branch (maximum 2)
              ne2=elem_cnct(1,i,ne) !the daughter element number
@@ -774,7 +786,7 @@ module filtration
 !!!###################################################################################
 
   subroutine tissue_compliance_edema(chest_wall_compliance,undef)
-    use arrays,only: dp,num_units,units,unit_field
+    use arrays,only: dp,num_units,units_vent,unit_field
     use indices,only: nu_comp,nu_pe,nu_vol
     use diagnostics, only: enter_exit
     implicit none
@@ -796,7 +808,7 @@ module filtration
     !.....dV/dP=1/[(1/2h^2).c/2.(3a+b)exp().(4h(h^2-1)^2)+(h^2+1)/h^2)]
 
     do nunit=1,num_units
-       ne=units(nunit)
+       ne=units_vent(nunit)
        !calculate a compliance for the tissue unit
        ratio=unit_field(nu_vol,nunit)/undef
        lambda = ratio**(1.0_dp/3.0_dp) !uniform extension ratio
@@ -822,10 +834,10 @@ module filtration
 !!!####################################################################
 
   subroutine update_elem_field_edema
-    use arrays,only: dp,elem_field,elem_nodes,node_xyz,num_elems
+    use arrays,only: dp,elem_field,elem_nodes,node_xyz,num_elems_aw
     use diagnostics, only: enter_exit
     use indices,only: ne_Vdot,ne_length, &
-         ne_radius,ne_resist,ne_t_resist,ne_vol
+         ne_aw_radius,ne_aw_resist,ne_t_resist,ne_vol
     use other_consts
     implicit none
 
@@ -843,7 +855,7 @@ module filtration
     sub_name = 'update_elem_volume'
     call enter_exit(sub_name,1)
 
-    do ne=1,num_elems
+    do ne=1,num_elems_aw
        np1=elem_nodes(1,ne)
        np2=elem_nodes(2,ne)
 
@@ -854,27 +866,27 @@ module filtration
             node_xyz(3,np1))**2)
 
        ! element volume
-       elem_field(ne_vol,ne) = PI * elem_field(ne_radius,ne)**2 * &
+       elem_field(ne_vol,ne) = PI * elem_field(ne_aw_radius,ne)**2 * &
             elem_field(ne_length,ne)
 
        le=elem_field(ne_length,ne)
-       rad=elem_field(ne_radius,ne)
+       rad=elem_field(ne_aw_radius,ne)
 
        ! element Poiseuille (laminar) resistance in units of Pa.s.mm-3
        resistance = 8.0_dp*GAS_VISCOSITY*elem_field(ne_length,ne)/ &
-            (PI*elem_field(ne_radius,ne)**4) !laminar resistance
+            (PI*elem_field(ne_aw_radius,ne)**4) !laminar resistance
 
        ! element turbulent resistance (flow in bifurcating tubes)
        gamma = 0.357_dp !inspiration
        if(elem_field(ne_Vdot,ne).lt.0.0_dp) gamma = 0.46_dp !expiration
 
        reynolds=DABS(elem_field(ne_Vdot,ne)*2.0_dp*GAS_DENSITY/ &
-            (PI*elem_field(ne_radius,ne)*GAS_VISCOSITY))
-       zeta = MAX(1.0_dp,dsqrt(2.0_dp*elem_field(ne_radius,ne)* &
+            (PI*elem_field(ne_aw_radius,ne)*GAS_VISCOSITY))
+       zeta = MAX(1.0_dp,dsqrt(2.0_dp*elem_field(ne_aw_radius,ne)* &
             reynolds/elem_field(ne_length,ne))*gamma)
-       elem_field(ne_resist,ne) = resistance * zeta
+       elem_field(ne_aw_resist,ne) = resistance * zeta
 
-       elem_field(ne_t_resist,ne) = elem_field(ne_resist,ne)
+       elem_field(ne_t_resist,ne) = elem_field(ne_aw_resist,ne)
 
     enddo !noelem
 
@@ -885,8 +897,8 @@ module filtration
 !!!###################################################################################
 
   subroutine update_node_pressures_edema(press_in)
-    use arrays,only: dp,elem_field,elem_nodes,node_field,num_elems
-    use indices,only: ne_Vdot,ne_resist,nj_aw_press
+    use arrays,only: dp,elem_field,elem_nodes,node_field,num_elems_aw
+    use indices,only: ne_Vdot,ne_aw_resist,nj_aw_press
     use diagnostics, only: enter_exit
     implicit none
 
@@ -908,12 +920,12 @@ module filtration
     np1=elem_nodes(1,ne) !first node in element
     node_field(nj_aw_press,np1)=press_in !set pressure at top of tree
 
-    do ne=1,num_elems !for each element
+    do ne=1,num_elems_aw !for each element
        np1=elem_nodes(1,ne) !start node number
        np2=elem_nodes(2,ne) !end node number
        !P(np2) = P(np1) - Resistance(ne)*Flow(ne)
        node_field(nj_aw_press,np2)=node_field(nj_aw_press,np1) &
-            -elem_field(ne_resist,ne)*elem_field(ne_Vdot,ne)
+            -elem_field(ne_aw_resist,ne)*elem_field(ne_Vdot,ne)
     enddo !noelem
 
     call enter_exit(sub_name,2)
@@ -925,7 +937,7 @@ module filtration
   subroutine update_mean_pleural_pressure_edema(ppl_current)
   !!! Update the mean pleural pressure based on current Pel (=Ptp) and Palv,
   !!! i.e. Ppl(unit) = -Pel(unit)+Palv(unit)
-    use arrays,only: dp,elem_nodes,node_field,num_units,units,unit_field
+    use arrays,only: dp,elem_nodes,node_field,num_units,units_vent,unit_field
     use diagnostics, only: enter_exit
     use indices,only: nj_aw_press,nu_pe
     implicit none
@@ -942,7 +954,7 @@ module filtration
 
     ppl_current = 0.0_dp
     do nunit=1,num_units
-       ne=units(nunit)
+       ne=units_vent(nunit)
        np2=elem_nodes(2,ne)
        ppl_current = ppl_current - unit_field(nu_pe,nunit) + &
             node_field(nj_aw_press,np2)
@@ -960,7 +972,7 @@ module filtration
   subroutine update_pleural_pressure_edema(ppl_edema)
   !!! Update the leural pressure based on current Pel (=Ptp) and Palv,
   !!! i.e. Ppl(unit) = -Pel(unit)+Palv(unit)
-    use arrays,only: dp,elem_nodes,node_field,num_units,units,unit_field
+    use arrays,only: dp,elem_nodes,node_field,num_units,units_vent,unit_field
     use diagnostics, only: enter_exit
     use indices,only: nj_aw_press,nu_pe,nu_ppl
     implicit none
@@ -976,7 +988,7 @@ module filtration
     call enter_exit(sub_name,1)
 
     do nunit=1,num_units
-       ne=units(nunit)
+       ne=units_vent(nunit)
        np2=elem_nodes(2,ne)
        unit_field(nu_ppl,nunit) = - unit_field(nu_pe,nunit) + &
             node_field(nj_aw_press,np2)
@@ -990,7 +1002,7 @@ module filtration
 !!!###################################################################################
   
   subroutine update_proximal_pressure_edema
-    use arrays,only: elem_nodes,node_field,num_units,units,unit_field
+    use arrays,only: elem_nodes,node_field,num_units,units_vent,unit_field
     use indices,only: nj_aw_press,nu_air_press
     use diagnostics, only: enter_exit
     implicit none
@@ -1006,7 +1018,7 @@ module filtration
 
     ! update the pressure at the proximal node of the element that feeds the elastic unit
     do nunit=1,num_units
-       ne=units(nunit)
+       ne=units_vent(nunit)
        np1=elem_nodes(1,ne)
        unit_field(nu_air_press,nunit)=node_field(nj_aw_press,np1) !store the pressure at entry node
     enddo !noelem
@@ -1059,7 +1071,7 @@ module filtration
 
   subroutine update_unit_dpdt_edema(dt)
     use arrays,only: dp,elem_nodes,node_field,&
-         num_units,units,unit_field
+         num_units,units_vent,unit_field
     use indices,only: nj_aw_press,nu_dpdt,nu_air_press
     use diagnostics, only: enter_exit
     implicit none
@@ -1078,7 +1090,7 @@ module filtration
 ! this is the rate of change of pressure at the proximal end of the element
 ! that supplies the tissue unit, i.e. not the rate of change of pressure within the unit.
     do nunit=1,num_units
-       ne=units(nunit)
+       ne=units_vent(nunit)
        np1=elem_nodes(1,ne)
        ! linear estimate
        est=(node_field(nj_aw_press,np1) &
@@ -1095,7 +1107,7 @@ module filtration
 
   subroutine update_unit_volume_edema(dt,Tinsp, Texpn)
     use arrays,only: dp,elem_field,elem_nodes,num_units,&
-         units,unit_field
+         units_vent,unit_field
     use diagnostics, only: enter_exit
     use indices,only: ne_Vdot,nu_vol,nu_vt,nu_vent
     implicit none
@@ -1111,7 +1123,7 @@ module filtration
     call enter_exit(sub_name,1)
 
     do nunit=1,num_units
-       ne=units(nunit)
+       ne=units_vent(nunit)
        np=elem_nodes(2,ne)
        ! update the volume of the lumped tissue unit
        unit_field(nu_vol,nunit)=unit_field(nu_vol,nunit)+dt* &

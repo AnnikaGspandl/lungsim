@@ -115,14 +115,14 @@ contains
 !!! store initial branch lengths, radii, resistance etc. in array 'elem_field'
     call update_elem_field
 
-    call volume_of_mesh(init_vol,volume_tree) ! to get deadspace volume
+    call volume_of_mesh(init_vol,volume_tree,0) ! to get deadspace volume
 
 !!! distribute the initial tissue unit volumes along the gravitational axis.
-    call set_initial_volume(Gdirn,COV,FRC*1.0e+6_dp,RMaxMean,RMinMean)
+    call set_initial_volume(Gdirn,COV,FRC*1.0e+6_dp,RMaxMean,RMinMean,0)
     undef = refvol * (FRC*1.0e+6_dp-volume_tree)/DBLE(elem_units_below(1))
 
 !!! calculate the total model volume
-    call volume_of_mesh(init_vol,volume_tree)
+    call volume_of_mesh(init_vol,volume_tree,0)
 
     write(*,'('' Anatomical deadspace = '',F8.3,'' ml'')') volume_tree/1.0e+3_dp ! in mL
     write(*,'('' Respiratory volume   = '',F8.3,'' L'')') (init_vol-volume_tree)/1.0e+6_dp !in L
@@ -261,7 +261,7 @@ contains
           enddo !converged
 
           call update_unit_volume(dt,Tinsp,Texpn) ! Update tissue unit volumes, and unit tidal volumes
-          call volume_of_mesh(now_vol,volume_tree) !calculate the mesh volume, store in 'now_vol'
+          call volume_of_mesh(now_vol,volume_tree,0) !calculate the mesh volume, store in 'now_vol'
           call update_elem_field  !update element lengths, volumes, resistances
           call tissue_compliance(chest_wall_compliance,undef) !update the unit compliances, uses 'undef' as input
           totalc = SUM(unit_field(nu_comp,1:num_units)) !the total model compliance
@@ -368,7 +368,7 @@ contains
     call enter_exit(sub_name,1)
 
 !!! calculate the total model volume
-    call volume_of_mesh(init_vol,volume_tree)
+    call volume_of_mesh(init_vol,volume_tree,0)
 
 !!! initialise the flow field to zero
     elem_field(ne_Vdot,1:num_elems) = 0.0_dp

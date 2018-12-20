@@ -406,7 +406,7 @@ contains
           call calc_mass(nj_conc1,nu_conc1,current_mass)
           mass_error_solve = 100 * (current_mass-mass0)/mass0
 
-          call volume_of_mesh(current_volume,volume_tree)
+          call volume_of_mesh(current_volume,volume_tree,0)
           ideal_mass = ideal_mass + inlet_flow*dt*node_field(nj_conc1,1)
           volume_error = 1.0e+2_dp*(current_volume - (initial_volume +  &
                total_volume_change))/(initial_volume + total_volume_change)
@@ -589,7 +589,7 @@ contains
     enddo
 
 !!! calculate the total model volume
-    call volume_of_mesh(current_volume,tree_volume)
+    call volume_of_mesh(current_volume,tree_volume,0)
 
     total_volume_change = current_volume-initial_volume
 

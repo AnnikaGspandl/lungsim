@@ -12,7 +12,8 @@ module arrays
 
   implicit none
 
-  integer :: num_elems,num_elems_2d,num_nodes,num_data,num_nodes_2d,num_units,num_lines_2d,maxgen
+  integer :: num_elems,num_elems_aw,num_elems_2d,num_nodes,num_data,num_nodes_2d,&
+  num_units,num_lines_2d,maxgen
 
   integer, parameter :: dp=kind(0.d0) !  for double precision
   real(dp),parameter :: zero_tol = 1.0e-12_dp
@@ -40,6 +41,7 @@ module arrays
   integer,allocatable :: elems_at_node(:,:)
   integer,allocatable :: elems_at_node_2d(:,:)
   integer,allocatable :: units(:)
+  integer,allocatable :: units_vent(:)
 
   real(dp),allocatable :: arclength(:,:)
   real(dp),allocatable :: elem_field(:,:) !properties of elements
@@ -83,14 +85,14 @@ module arrays
   real(dp) :: unit_before
 
   private
-  public set_node_field_value, elem_field, num_elems, num_elems_2d, elem_nodes, node_xyz, &
+  public set_node_field_value, elem_field, num_elems,num_elems_aw, num_elems_2d, elem_nodes, node_xyz, &
          nodes,nodes_2d, elems, num_nodes, num_nodes_2d, num_data, data_xyz, data_weight, &
          node_xyz_2d, node_versn_2d, units, num_units, unit_field, node_field, dp, &
          elem_cnct, elem_ordrs, elem_direction, elems_at_node, elem_symmetry, expansile, &
          elem_units_below, maxgen,capillary_bf_parameters, zero_tol,loose_tol,gasex_field, &
          num_lines_2d, lines_2d, line_versn_2d, lines_in_elem, nodes_in_line, elems_2d, &
          elem_cnct_2d, elem_nodes_2d, elem_versn_2d, elem_lines_2d, elems_at_node_2d, arclength, &
-         scale_factors_2d, parentlist
+         scale_factors_2d, parentlist,units_vent
 
 contains
   subroutine set_node_field_value(row, col, value)

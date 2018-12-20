@@ -344,20 +344,20 @@ contains
 !>*set_initial_volume:* assigns a volume to terminal units appended on a tree structure
 !>based on an assumption of a linear gradient in the gravitational direction with max
 !> min and COV values defined.
-  subroutine set_initial_volume_c(Gdirn, COV, total_volume, Rmax, Rmin) bind(C, name="set_initial_volume_c")
+  subroutine set_initial_volume_c(Gdirn, COV, total_volume, Rmax, Rmin, coupled) bind(C, name="set_initial_volume_c")
 
     use geometry, only: set_initial_volume
     use arrays, only: dp
     implicit none
 
     !     Parameter List
-    integer,intent(in) :: Gdirn
+    integer,intent(in) :: Gdirn,coupled
     real(dp),intent(in) :: COV, total_volume, Rmax, Rmin
 
 #if defined _WIN32 && defined __INTEL_COMPILER
-    call so_set_initial_volume(Gdirn, COV, total_volume, Rmax, Rmin)
+    call so_set_initial_volume(Gdirn, COV, total_volume, Rmax, Rmin, coupled)
 #else
-    call set_initial_volume(Gdirn, COV, total_volume, Rmax, Rmin)
+    call set_initial_volume(Gdirn, COV, total_volume, Rmax, Rmin, coupled)
 #endif
 
   end subroutine set_initial_volume_c
@@ -366,17 +366,18 @@ contains
 !###################################################################################
 !
 !*volume_of_mesh:* calculates the volume of an airway mesh including conducting and respiratory airways
-  subroutine volume_of_mesh_c(volume_model,volume_tree) bind(C, name="volume_of_mesh_c")
+  subroutine volume_of_mesh_c(volume_model,volume_tree,coupled) bind(C, name="volume_of_mesh_c")
     use arrays, only: dp
     use geometry, only: volume_of_mesh
     implicit none
 
     real(dp) :: volume_model,volume_tree
+    integer :: coupled
 
 #if defined _WIN32 && defined __INTEL_COMPILER
-    call so_volume_of_mesh(volume_model, volume_tree)
+    call so_volume_of_mesh(volume_model, volume_tree,coupled)
 #else
-    call volume_of_mesh(volume_model, volume_tree)
+    call volume_of_mesh(volume_model, volume_tree,coupled)
 #endif
 
   end subroutine volume_of_mesh_c
