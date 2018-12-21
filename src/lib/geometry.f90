@@ -1605,7 +1605,6 @@ contains
                 ! element volume
          elem_field(ne_vol,ne) = PI * elem_field(ne_radius,ne)**2 * &
             elem_field(ne_length,ne)
-         elem_field(ne_a_A,ne) = 1.0_dp ! set default for ratio a/A
       enddo
     endif
 
@@ -2442,7 +2441,9 @@ contains
     if(allocated(elem_field).and.num_ne.gt.0)then
         allocate(rnodes_temp(num_ne,num_elems))
         rnodes_temp=elem_field
+        write(*,*) "rnodes_temp=elem_field"
         deallocate(elem_field)
+        write(*,*) "deallocate elem_field"
         allocate(elem_field(num_ne,num_elems_new))
         elem_field(1:num_ne,1:num_elems)=rnodes_temp(1:num_ne,1:num_elems)
         deallocate(rnodes_temp)
