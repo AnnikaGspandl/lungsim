@@ -27,7 +27,7 @@ module indices
   ! indices for unit_field
   integer :: num_nu,nu_vol,nu_comp,nu_conc2,nu_Vdot0,nu_Vdot1, &
        nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl,nu_conc1,nu_vent,&
-       nu_vd,nu_perf,nu_blood_press
+       nu_vd,nu_perf,nu_blood_press, nu_filt
   !indices for gas exchange field
 ! indices for gasex_field
   integer,parameter :: num_gx = 12
@@ -60,7 +60,7 @@ public num_ne,ne_radius,ne_length,ne_vol,&
 public num_nu,nu_vol,nu_comp, nu_conc2,nu_Vdot0,nu_Vdot1, &
        nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl, &
        nu_conc1,nu_vent,nu_vd,&
-       nu_perf,nu_blood_press
+       nu_perf,nu_blood_press, nu_filt
 
 public num_gx, ng_p_alv_o2,ng_p_alv_co2,ng_p_ven_o2,ng_p_ven_co2, &
        ng_p_cap_o2, ng_p_cap_co2,ng_source_o2,ng_source_co2, &
@@ -345,7 +345,7 @@ contains
     ne_group=16!Groups vessels into arteries (field=0), capillaries (field=1) and veins(field=2)
     ne_unit=17
     ! indices for unit_field
-    num_nu=15 ! number of unit fields
+    num_nu=16 ! number of unit fields
     !Ventilation
     nu_vol=1
     nu_comp=2
@@ -363,6 +363,8 @@ contains
     !Perfusion
     nu_perf=14
     nu_blood_press=15
+    ! Filtration J_v
+    nu_filt=16 ! Filtration in mm^3 per time step
     
     call enter_exit(sub_name,2)
   end subroutine filtration_indices

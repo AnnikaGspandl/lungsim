@@ -15,7 +15,7 @@ module exports
   private
   public export_1d_elem_geometry,export_elem_geometry_2d,export_node_geometry,export_node_geometry_2d,&
        export_node_field,export_elem_field,export_terminal_solution,export_terminal_perfusion,&
-       export_terminal_ssgexch,export_1d_elem_field,export_data_geometry
+       export_terminal_ssgexch,export_1d_elem_field,export_data_geometry,export_parameters_edema
 
 contains
 !!!################################################################
@@ -763,5 +763,53 @@ contains
     close(10)
 
   end subroutine export_elem_field
+  
+!!!################################################################
+  !*export_parameters_edema:*
+  ! exports model settings/parameters to text-file
+
+  subroutine export_parameters_edema(PARAMFILE, group_name, mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc, L_p, sigma, pi_c, pi_alv, c_L)
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EXPORT_PARAMETERS_EDEMA" :: EXPORT_PARAMETERS_EDEMA
+    use other_consts, only: MAX_FILENAME_LEN, MAX_STRING_LEN
+    use arrays,only: elem_field,num_elems, dp
+    implicit none
+
+!!! Parameters, In-/Outputs
+    character(len=MAX_FILENAME_LEN), intent(in) :: PARAMFILE
+    character(len=MAX_STRING_LEN), intent(in) :: group_name
+    character(len=MAX_STRING_LEN), intent(in) :: mesh_type
+    character(len=MAX_STRING_LEN), intent(in) :: bc_type
+    integer, intent(in) :: grav_dirn
+    real(dp), intent(in) :: grav_factor, inlet_bc, outlet_bc, L_p, sigma, pi_c, pi_alv, c_L
+
+!!! Local Variables
+    integer :: len_end
+    open(10, file=PARAMFILE, status='replace')
+    len_end=len_trim(group_name)
+       
+    !**     write the group name
+    write(10,'( '' Group name: '',A)') group_name(:len_end)
+  
+    write(10,'( '' #Inputs for Perfusion Model:'' )')
+        write(10,'(2X,''mesh_type: '',4(1X,A))') mesh_type
+        write(10,'(2X,''grav_dirn: '',4(1X,I12))') grav_dirn
+        write(10,'(2X,''grav_factor: '',4(1X,E12.5))') grav_factor
+        write(10,'(2X,''bc_type: '',4(1X,A))') bc_type
+        write(10,'(2X,''inlet_bc: '',4(1X,E12.5))') inlet_bc
+        write(10,'(2X,''outlet_bc: '',4(1X,E12.5))') outlet_bc
+  
+     write(10,'( '' #Filtration Indices:'' )')
+        write(10,'(2X,''Hydraulic conductivity: '',4(1X,E12.5))') L_p
+        write(10,'(2X,''Reflection coefficient: '',4(1X,E12.5))') sigma
+        write(10,'(2X,''Capillary osmotic pressure: '',4(1X,E12.5))') pi_c
+        write(10,'(2X,''Alveolar fluid osmotic pressure: '',4(1X,E12.5))') pi_alv
+        write(10,'(2X,''Lymphatic clearance: '',4(1X,E12.5))') c_L
+    
+     write(10,'( '' #General Settings:'' )')
+
+     
+    close(10)
+
+  end subroutine export_parameters_edema
 
 end module exports

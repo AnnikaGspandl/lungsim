@@ -19,16 +19,16 @@ module pressure_resistance_flow
 
   !Interfaces
   private
-  public evaluate_prq, evaluate_prq_edema
+  public evaluate_prq!, evaluate_prq_edema
 contains
 !###################################################################################
 !
 !*evaluate_PRQ:* Solves for pressure and flow in a rigid or compliant tree structure
-  subroutine evaluate_prq(mesh_type,grav_dirn,grav_factor,bc_type,inlet_bc,outlet_bc)
+  subroutine evaluate_prq(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc) !EDEMA
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_PRQ" :: EVALUATE_PRQ
     use indices
     use capillaryflow,only: cap_flow_ladder
-    use arrays,only: dp,num_elems,num_nodes,elem_field,elem_nodes,elem_cnct,node_xyz
+    use arrays,only: dp,num_elems,num_nodes,elem_field,elem_nodes,elem_cnct,node_xyz,unit_field
     use diagnostics, only: enter_exit
     !local variables
     integer :: mesh_dof,depvar_types
@@ -47,11 +47,16 @@ contains
     real(dp), allocatable :: prq_solution(:,:),solver_solution(:)
     real(dp) :: viscosity,density,inlet_bc,outlet_bc,inletbc,outletbc,grav_vect(3),gamma,total_resistance,ERR
     logical, allocatable :: FIX(:)
-    logical :: ADD=.FALSE.,CONVERGED=.FALSE., EDEMA=.FALSE.
+    logical :: ADD=.FALSE.,CONVERGED=.FALSE.
     character(len=60) :: sub_name,mesh_type,vessel_type,mechanics_type,bc_type
     integer :: grav_dirn,no,depvar,KOUNT,nz,ne,SOLVER_FLAG,ne0,ne1,nj,nu
     real(dp) :: MIN_ERR,N_MIN_ERR,elasticity_parameters(3),mechanics_parameters(2),grav_factor,P1
     real(dp) :: P2,Q01,Rin,Rout,x_cap,y_cap,z_cap,Ppl,LPM_R,Lin,Lout
+    
+    ! Define logical EDEMA for if statements regarding Ppl (not yet implemented as input)
+    !                EDEMA =.TRUE. for modeling edema -> Ppl calculated via ventilation model
+    !                EDEMA=.FALSE. for 'normal' modeling -> Ppl as linear gradient
+    logical :: EDEMA=.FALSE.
 
     sub_name = 'evaluate_prq'
     call enter_exit(sub_name,1)
@@ -194,6 +199,7 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
 !!! --ITERATIVE LOOP--
     MIN_ERR=1.d10
     N_MIN_ERR=0
+    write(*,*) 'Now comes iterative loop (only if not yet converged)'
     do while(.NOT.CONVERGED)
       KOUNT=KOUNT+1
       print*, 'Outer loop iterations:',KOUNT
@@ -281,9 +287,10 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                 x_cap=node_xyz(1,elem_nodes(1,ne))
                 y_cap=node_xyz(2,elem_nodes(1,ne))
                 z_cap=node_xyz(3,elem_nodes(1,ne))
+                
                 ! for Modelling of Edema:
                 !if (EDEMA)then
-                    !call calculate_ppl_edema(nu,grav_vect,mechanics_parameters,Ppl)
+                    !Ppl = unit_field(nu_ppl,elem_nodes(1,ne))
                 !else
                     call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Ppl)
                 !endif
@@ -311,7 +318,8 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
          endif !ERR not converged
       endif!vessel type
     enddo !notconverged
-
+write(*,*) 'After iterative loop'
+    
 !need to write solution to element/nodal fields for export
     call map_solution_to_mesh(prq_solution,depvar_at_elem,depvar_at_node,mesh_dof)
     !NEED TO UPDATE TERMINAL SOLUTION HERE. LOOP THO' UNITS AND TAKE FLOW AND PRESSURE AT TERMINALS
@@ -1076,59 +1084,49 @@ subroutine calculate_ppl(np,grav_vect,mechanics_parameters,Ppl)
     call enter_exit(sub_name,2)
 end subroutine calculate_ppl
 
-!!!#################################################################################
-!*evaluate_prq_edema:* --- only called by Filtration.f90 when Modeling Edema ---
-! This subroutine calls main subroutine evaluate_prq of (this) perfusion model with 
-! modified settings:    - modified value for Ppl (calculated by ventilation model)
-!                       - logic EDEMA for if statements
-!                       - Output: Pcap
-  subroutine evaluate_prq_edema!(mesh_type,grav_dirn,grav_factor,bc_type,inlet_bc,outlet_bc) !,Ppl,EDEMA,Pcap or P1/P2
-  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_PRQ_EDEMA" :: EVALUATE_PRQ_EDEMA
-    use indices
-    !use capillaryflow,only: cap_flow_ladder
-    use arrays,only: dp!,num_elems,num_nodes,elem_field,elem_nodes,elem_cnct,node_xyz
-    use diagnostics, only: enter_exit
-    use geometry, only: add_matching_mesh,append_units,define_node_geometry, define_1d_elements,define_rad_from_geom
-
-    !In-/Outputs
-    real(dp) :: inlet_bc,outlet_bc
-    character(len=60) :: mesh_type,bc_type
-    integer :: grav_dirn
-    real(dp) :: grav_factor
-    logical :: EDEMA
-    
-    !local variables
-    real(dp) :: inlet_rad_ven,mpa_rad,s_ratio, s_ratio_ven
-    character(len=60) :: sub_name
-    character :: name,order_options1,order_options2,order_system
-    
-  ! ###########################################################################
-    
-    sub_name = 'evaluate_prq_edema'
-    call enter_exit(sub_name,1)
-    
-    ! Define Settings (normally defined in perfusion.py, but this SR is not called by perfusion.py 
-    ! but by filtration.py -> all settings loaded by filtration.py = ventilation settings
-    ! => perfusion settings need to be defined here)     
-    ! Read in geometry files -> not necessary for forst approach because airway and blood vessel tree have essentially the same strucutre
-
-    ! Define Input parameters for main Subroutine
-    mesh_type = 'full_plus_ladder'
-    grav_dirn = 2
-    grav_factor = 1.0
-    bc_type = 'pressure'
-    inlet_bc = 2000.0
-    outlet_bc = 666.0 
-    
-    ! Define logical EDEMA for if statements in main subroutine evaluate_prq
-    !EDEMA = .TRUE.
-    
-    ! call main subroutine of perfusion model evaluate_prq to run perfusion model
-    call evaluate_prq(mesh_type,grav_dirn,grav_factor,bc_type,inlet_bc,outlet_bc)
-    !write(*,*) "This is the SR evaluate_prq_edema"
-    call enter_exit(sub_name,2)
-    
-  end subroutine evaluate_prq_edema
+!!!!#################################################################################
+!! 
+!!*evaluate_prq_edema:* --- only called by Filtration.f90 when Modeling Edema ---
+!! This subroutine calls main subroutine evaluate_prq of (this) perfusion model with 
+!! modified settings:    - modified value for Ppl (calculated by ventilation model)
+!!                       - logic EDEMA for if statements -> not implemented yet
+!!                       - Output: Pcap
+!  subroutine evaluate_prq_edema(mesh_type,grav_dirn,grav_factor,bc_type,inlet_bc,outlet_bc) !EDEMA, Ppl,Pcap or P1/P2
+!  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_PRQ_EDEMA" :: EVALUATE_PRQ_EDEMA
+!    use indices
+!    !use capillaryflow,only: cap_flow_ladder
+!    use arrays,only: dp!,num_elems,num_nodes,elem_field,elem_nodes,elem_cnct,node_xyz
+!    use diagnostics, only: enter_exit
+!    !use geometry, only: add_matching_mesh,append_units,define_node_geometry, define_1d_elements,define_rad_from_geom!!
+!
+!    !In-/Outputs
+!    real(dp) :: inlet_bc,outlet_bc
+!    character(len=60) :: mesh_type,bc_type
+!    integer :: grav_dirn
+!    real(dp) :: grav_factor
+!    !logical :: EDEMA
+!    
+!    !local variables
+!    !real(dp) :: inlet_rad_ven,mpa_rad,s_ratio, s_ratio_ven
+!    character(len=60) :: sub_name
+!    !character :: name,order_options1,order_options2,order_system
+!    
+!  ! ###########################################################################
+!    
+!    sub_name = 'evaluate_prq_edema'
+!    call enter_exit(sub_name,1)
+!    
+!    ! Define Settings (normally defined in perfusion.py, but this SR is not called by perfusion.py 
+!    ! but by filtration.py -> all settings loaded by filtration.py = ventilation settings
+!    ! => perfusion settings need to be defined here)     
+!    ! Read in geometry files -> not necessary for forst approach because airway and blood vessel tree have essentially the same strucutre
+!   
+!    ! call main subroutine of perfusion model evaluate_prq to run perfusion model
+!    call evaluate_prq(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc) !EDEMA
+!    !write(*,*) "This is the SR evaluate_prq_edema"
+!    call enter_exit(sub_name,2)
+!    
+!  end subroutine evaluate_prq_edema
   
   
   
