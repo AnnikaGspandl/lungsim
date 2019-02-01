@@ -8,6 +8,7 @@ module pressure_resistance_flow
 !*Full Description:*
 !
 !This module contains tools that are used to solve systems of equations representing steady pressure, resistance and flow problems in any branching geometry. The subroutines in this module are core subroutines that are used in many problem types and are applicable beyond lung modelling
+!This module contains tools that are used to solve systems of equations representing steady pressure, resistance and flow problems in any branching geometry. The subroutines in this module are core subroutines that are used in many problem types and are applicable beyond lung modelling
   use solve, only: BICGSTAB_LinSolv,pmgmres_ilu_cr
   use other_consts, only: TOLERANCE
   implicit none
@@ -203,6 +204,7 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
     do while(.NOT.CONVERGED)
       KOUNT=KOUNT+1
       print*, 'Outer loop iterations:',KOUNT
+      
 !!! Initialise solution vector based on bcs and rigid vessel resistance
       if(KOUNT.eq.1)then!set up boundary conditions
         if(bc_type.eq.'pressure')then
@@ -274,8 +276,11 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
 
 !Put the ladder stuff here --> See solve11.f
          if(mesh_type.eq.'full_plus_ladder')then
+             write(*,*) "if statement 1 entered"
            do ne=1,num_elems
+            write(*,*) ne, elem_field(ne_group,ne)
               if(elem_field(ne_group,ne).eq.1.0_dp)then!(elem_field(ne_group,ne)-1.0_dp).lt.TOLERANCE)then
+                write(*,*) "if statement 2 entered"
                 nu=elem_field(ne_unit,ne1)
                 ne0=elem_cnct(-1,1,ne)!upstream element number
                 ne1=elem_cnct(1,1,ne)
@@ -287,12 +292,14 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                 x_cap=node_xyz(1,elem_nodes(1,ne))
                 y_cap=node_xyz(2,elem_nodes(1,ne))
                 z_cap=node_xyz(3,elem_nodes(1,ne))
-                
                 ! for Modelling of Edema:
                 !if (EDEMA)then
                     !Ppl = unit_field(nu_ppl,elem_nodes(1,ne))
                 !else
                     call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Ppl)
+                    write(*,*) "store Ppl in unit_field:", Ppl
+                    unit_field(nu_perfppl,nu)=Ppl
+                    write(*,*) "Ppl stored in unit_field", unit_field(nu_perfppl,nu)
                 !endif
                 Lin=elem_field(ne_length,ne0)
                 Lout=elem_field(ne_length,ne1)

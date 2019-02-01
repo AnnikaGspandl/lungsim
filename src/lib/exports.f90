@@ -14,8 +14,9 @@ module exports
 
   private
   public export_1d_elem_geometry,export_elem_geometry_2d,export_node_geometry,export_node_geometry_2d,&
-       export_node_field,export_elem_field,export_terminal_solution,export_terminal_perfusion,&
-       export_terminal_ssgexch,export_1d_elem_field,export_data_geometry,export_parameters_edema
+         export_node_field,export_elem_field,export_terminal_solution,export_terminal_perfusion,&
+         export_terminal_ssgexch,export_1d_elem_field,export_data_geometry,export_parameters_edema,&
+         export_starling_variables
 
 contains
 !!!################################################################
@@ -812,4 +813,97 @@ contains
 
   end subroutine export_parameters_edema
 
+  !!! ##########################################################
+  subroutine export_starling_variables!(EXNODEFILE, name)
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EXPORT_STARLING_VARIABLES" :: EXPORT_STARLING_VARIABLES
+
+    use arrays,only: elem_nodes,&
+         node_xyz,num_units,units,unit_field,node_field
+    use indices
+    use other_consts, only: MAX_FILENAME_LEN, MAX_STRING_LEN
+    implicit none
+
+!!! Parameters
+    !character(len=MAX_FILENAME_LEN),intent(in) :: EXNODEFILE
+    !character(len=MAX_STRING_LEN),intent(in) :: name
+
+!!! Local Variables
+    integer :: len_end,ne,nj,NOLIST,np,np_last,VALUE_INDEX
+    logical :: FIRST_NODE
+
+!    len_end=len_trim(name)
+    if(num_units.GT.0) THEN
+       open(10, file='starling_variables.exnode', status='replace')
+       !**     write the group name
+       write(10,'( '' Group name: '',A)') 'filt_model'!(:len_end)
+       FIRST_NODE=.TRUE.
+       np_last=1
+       !*** Exporting Terminal Solution
+       do nolist=1,num_units
+          if(nolist.GT.1) np_last = np
+          ne=units(nolist)
+          np=elem_nodes(2,ne)
+          !*** Write the field information
+          VALUE_INDEX=1
+          if(FIRST_NODE)THEN
+             write(10,'( '' #Fields=3'' )')
+             write(10,'('' 1) coordinates, coordinate, rectangular cartesian, #Components=3'')')
+             do nj=1,3
+                if(nj.eq.1) write(10,'(2X,''x.  '')',advance="no")
+                if(nj.eq.2) write(10,'(2X,''y.  '')',advance="no")
+                if(nj.eq.3) write(10,'(2X,''z.  '')',advance="no")
+                write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+                VALUE_INDEX=VALUE_INDEX+1
+             enddo
+             !Capillary Pressure
+             write(10,'('' 2) capillary pressure, field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+             VALUE_INDEX=VALUE_INDEX+1
+             !Pleural pressure
+             write(10,'('' 3) pleural pressure gradient (perfusion model), field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+             VALUE_INDEX=VALUE_INDEX+1
+             !Pleural pressure
+             write(10,'('' 3) pleural pressure (ventilation model), field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+             VALUE_INDEX=VALUE_INDEX+1
+             !Surface Area
+             write(10,'('' 4) Surface area, field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+             VALUE_INDEX=VALUE_INDEX+1
+             !Alveolar Pressure
+             write(10,'('' 3) Alveolar pressure, field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+             VALUE_INDEX=VALUE_INDEX+1
+             !Filtration
+             write(10,'('' 3) Filtration, field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+          endif !FIRST_NODE
+          !***      write the node
+          write(10,'(1X,''Node: '',I12)') np
+          do nj=1,3
+             write(10,'(2X,4(1X,F12.6))') (node_xyz(nj,np))      !Coordinates
+          enddo !njj2
+           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_blood_press,NOLIST)) !capillary pressure
+           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_perfppl,NOLIST)) !pleural pressure (gradient from perfusion model)
+           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_ppl,NOLIST)) !pleural pressure (ventilation model)
+           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_SA,NOLIST)) !Surface Area
+           write(10,'(2X,4(1X,F12.6))') (node_field(nj_aw_press,np)) !Alveolar pressure
+           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_filt,NOLIST)) !pressure
+          FIRST_NODE=.FALSE.
+          np_last=np
+       enddo !nolist (np)
+    endif !num_nodes
+    close(10)    
+    
+  end subroutine export_starling_variables
+  
+  
+  
 end module exports
