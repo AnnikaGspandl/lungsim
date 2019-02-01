@@ -276,14 +276,12 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
 
 !Put the ladder stuff here --> See solve11.f
          if(mesh_type.eq.'full_plus_ladder')then
-             write(*,*) "if statement 1 entered"
            do ne=1,num_elems
-            write(*,*) ne, elem_field(ne_group,ne)
               if(elem_field(ne_group,ne).eq.1.0_dp)then!(elem_field(ne_group,ne)-1.0_dp).lt.TOLERANCE)then
-                write(*,*) "if statement 2 entered"
-                nu=elem_field(ne_unit,ne1)
                 ne0=elem_cnct(-1,1,ne)!upstream element number
                 ne1=elem_cnct(1,1,ne)
+                nu=elem_field(ne_unit,ne1)
+                write(*,*) "Define P1 and P2:"
                 P1=prq_solution(depvar_at_node(elem_nodes(2,ne0),0,1),1) !pressure at start node of capillary element
                 P2=prq_solution(depvar_at_node(elem_nodes(1,ne1),0,1),1)!pressure at end node of capillary element
                 Q01=prq_solution(depvar_at_elem(1,1,ne0),1) !flow in element upstream of capillary element !mm^3/s
@@ -297,9 +295,8 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                     !Ppl = unit_field(nu_ppl,elem_nodes(1,ne))
                 !else
                     call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Ppl)
-                    write(*,*) "store Ppl in unit_field:", Ppl
                     unit_field(nu_perfppl,nu)=Ppl
-                    write(*,*) "Ppl stored in unit_field", unit_field(nu_perfppl,nu)
+                    write(*,*) "Pleural pressure from perfusion model (gradient): ", unit_field(nu_perfppl,nu) ! -> /= 0
                 !endif
                 Lin=elem_field(ne_length,ne0)
                 Lout=elem_field(ne_length,ne1)
@@ -307,10 +304,13 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                         Ppl,Q01,Rin,Rout,x_cap,y_cap,z_cap,&
                         .FALSE.)
                  elem_field(ne_resist,ne)=LPM_R
+                 write(*,*) "Pleural pressure  (gradient) after calling SR cap_flow_ladder: ", unit_field(nu_perfppl,nu) ! -> /= 0
               endif
            enddo
+           write(*,*) "Pleural pressure(100) (gradient) after do loop: ", unit_field(nu_perfppl,100) ! =0 -> why?
          endif
-
+        write(*,*) "Pleural pressure(100) (gradient) after second if : ", unit_field(nu_perfppl,100) ! =0 -> why?
+        
          ERR=ERR/MatrixSize !sum of error divided by no of unknown depvar
          if(ERR.LE.1.d-6.AND.(KOUNT.NE.1))then
            CONVERGED=.TRUE.
@@ -331,7 +331,7 @@ write(*,*) 'After iterative loop'
     call map_solution_to_mesh(prq_solution,depvar_at_elem,depvar_at_node,mesh_dof)
     !NEED TO UPDATE TERMINAL SOLUTION HERE. LOOP THO' UNITS AND TAKE FLOW AND PRESSURE AT TERMINALS
     call map_flow_to_terminals
-
+    
     deallocate (mesh_from_depvar, STAT = AllocateStatus)
     deallocate (depvar_at_elem, STAT = AllocateStatus)
     deallocate (depvar_at_node, STAT = AllocateStatus)

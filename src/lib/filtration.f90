@@ -360,14 +360,14 @@ module filtration
           
           ! Calculate Ppl = -Pel + Palv
             call update_pleural_pressure_edema
-            write(*,*) "Pleural pressure from ventilation model for unit 100 -> Ppl = -Pel = Palv: ", unit_field(nu_ppl, 100)
+            !write(*,*) "Pleural pressure from ventilation model for unit 100 -> Ppl = -Pel = Palv: ", unit_field(nu_ppl, 100)
                 
           ! Get filtration surface area SA in mm^2
             call update_surface_area_edema
                 
           ! Get capillary hydrostatic pressure P_c in mmH2O (-> perfusion model)
             write(*,*) "Call SR evaluate_prq from perfusion model"
-            !call evaluate_prq(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc)
+            call evaluate_prq(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc)
         
           ! Calculate transcapillary fluid flow J_v per time step according to Starling Equation in m^3
             
@@ -929,28 +929,30 @@ module filtration
             ne=units_vent(nunit)
             np2=elem_nodes(2,ne)
             ! calculate Filtration J_v per time step (without lymphatic clearance)
-            J_v = L_p * unit_field(nu_SA,nunit) * &
+            unit_field(nu_filt,nunit) = L_p * unit_field(nu_SA,nunit) * &
                 ((unit_field(nu_blood_press,nunit) - node_field(nj_aw_press,np2)) &
                 - sigma * (pi_c - pi_alv)) * dt 
-            write(*,*) "Filtration without clearance: ", J_v
-            write(*,*) "Lymphatic Clearance: ", c_L*dt           
+            write(*,*) "Filtration without clearance: ", unit_field(nu_filt,nunit)
+            !write(*,*) "Lymphatic Clearance: ", c_L*dt           
             ! Check: Lymphatic Clearance c_L*dt > J_v?
-            if(c_L*dt.gt.J_v) then
-                 unit_field(nu_filt,nunit) = 0.0_dp         ! Filtration gets cleared by lymph flow
-                 write(*,*) "Filtration cleared by lymphatic clearance"
-            else
-                 unit_field(nu_filt,nunit) = J_v !- c_L*dt   ! Lymph flow too low to clear filtration -> edema
-                 write(*,*) "Filtration not cleared by lymphatic clearance -> edema"
-            endif
-            
-            ! Export all the values that go into the Starling equation
-            !call export_starling_variables!('starling_variables.exnode', 'filt_model')
-            
+            !if(c_L*dt.gt.J_v) then
+                 !unit_field(nu_filt,nunit) = 0.0_dp         ! Filtration gets cleared by lymph flow
+                 !write(*,*) "Filtration cleared by lymphatic clearance"
+            !else
+                 !unit_field(nu_filt,nunit) = J_v !- c_L*dt   ! Lymph flow too low to clear filtration -> edema
+                 !write(*,*) "Filtration not cleared by lymphatic clearance -> edema"
+            !endif
+                       
             ! Summarized Filtration for whole lung (all units) per time step (after lymphatic clearance)
-            Jv_sum = 0.0_dp
-            Jv_sum = unit_field(nu_filt,nunit) + Jv_sum
+            !Jv_sum = 0.0_dp
+            !Jv_sum = unit_field(nu_filt,nunit) + Jv_sum
+            write(*,*) "Pleural pressure from perfusion model (gradient) in filtration.f90", unit_field(nu_perfppl,nunit)
+            !write(*,*) "Capillary pressure from perfusion model in filtration.f90", unit_field(nu_blood_press,nunit)
         enddo !nounit
-     
+
+        ! Export all the values that go into the Starling equation
+        call export_starling_variables!('starling_variables.exnode', 'filt_model')
+        
     call enter_exit(sub_name,2)
 
   end subroutine update_filtration_edema    
