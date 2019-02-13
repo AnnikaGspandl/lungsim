@@ -769,7 +769,8 @@ contains
   !*export_parameters_edema:*
   ! exports model settings/parameters to text-file
 
-  subroutine export_parameters_edema(PARAMFILE, group_name, mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc, L_p, sigma, pi_c, pi_alv, c_L)
+  subroutine export_parameters_edema(PARAMFILE, group_name, mesh_type, grav_dirn,&
+     grav_factor, bc_type, inlet_bc, outlet_bc, L_p, sigma, pi_c, pi_alv, c_L)
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EXPORT_PARAMETERS_EDEMA" :: EXPORT_PARAMETERS_EDEMA
     use other_consts, only: MAX_FILENAME_LEN, MAX_STRING_LEN
     use arrays,only: elem_field,num_elems, dp

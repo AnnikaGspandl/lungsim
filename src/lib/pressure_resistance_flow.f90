@@ -78,6 +78,10 @@ contains
     !pressure (at inlet and outlets)
     !flow (flow at inlet pressure at outlet).
 
+!Initialise ADD and CONVERGED to false as this does not happen automatically with multiple calls
+ADD = .FALSE.
+CONVERGED = .FALSE.
+
 vessel_type='elastic_g0_beta'
 mechanics_type='linear'
 
@@ -141,19 +145,22 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
 !! Allocate memory to depvar arrays
     mesh_dof=num_elems+num_nodes
     depvar_types=2 !pressure/flow
+    if(allocated(mesh_from_depvar))deallocate(mesh_from_depvar)
     allocate (mesh_from_depvar(0:2,mesh_dof,0:2), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for mesh_from_depvar array ***"
+    if(allocated(depvar_at_elem))deallocate(depvar_at_elem)
     allocate (depvar_at_elem(0:2,depvar_types,num_elems), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for depvar_at_elem array ***"
+    if(allocated(depvar_at_node))deallocate(depvar_at_node)
     allocate (depvar_at_node(num_nodes,0:2,depvar_types), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for depvar_at_node array ***"
+    if(allocated(prq_solution))deallocate(prq_solution)
     allocate (prq_solution(mesh_dof,2), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for prq_solution array ***"
     prq_solution=0.0_dp !initialise
+    if(allocated(FIX))deallocate(FIX)
     allocate (FIX(mesh_dof), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for FIX array ***"
-
-
 
 !! Setting up mappings between nodes, elements and solution depvar
     call calc_depvar_maps(mesh_from_depvar,depvar_at_elem,&
@@ -177,7 +184,7 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
     KOUNT=0
 !! Calculate resistance of each element
    call calculate_resistance(viscosity,KOUNT)
-        
+
 !! Calculate sparsity structure for solution matrices
     !Determine size of and allocate solution vectors/matrices
     call calc_sparse_size(mesh_dof,depvar_at_elem,depvar_at_node,FIX,NonZeros,MatrixSize)
@@ -200,7 +207,6 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
 !!! --ITERATIVE LOOP--
     MIN_ERR=1.d10
     N_MIN_ERR=0
-    write(*,*) 'Now comes iterative loop (only if not yet converged)'
     do while(.NOT.CONVERGED)
       KOUNT=KOUNT+1
       print*, 'Outer loop iterations:',KOUNT
@@ -279,9 +285,8 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
            do ne=1,num_elems
               if(elem_field(ne_group,ne).eq.1.0_dp)then!(elem_field(ne_group,ne)-1.0_dp).lt.TOLERANCE)then
                 ne0=elem_cnct(-1,1,ne)!upstream element number
-                ne1=elem_cnct(1,1,ne)
-                nu=elem_field(ne_unit,ne1)
-                write(*,*) "Define P1 and P2:"
+                ne1=elem_cnct(1,1,ne) !downstream element number
+                nu=elem_field(ne_unit,ne)
                 P1=prq_solution(depvar_at_node(elem_nodes(2,ne0),0,1),1) !pressure at start node of capillary element
                 P2=prq_solution(depvar_at_node(elem_nodes(1,ne1),0,1),1)!pressure at end node of capillary element
                 Q01=prq_solution(depvar_at_elem(1,1,ne0),1) !flow in element upstream of capillary element !mm^3/s
@@ -294,9 +299,10 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                 !if (EDEMA)then
                     !Ppl = unit_field(nu_ppl,elem_nodes(1,ne))
                 !else
+                !write(*,*) 'what is ppl from vent', unit_field(nu_ppl,nu),nu_ppl,nu
                     call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Ppl)
                     unit_field(nu_perfppl,nu)=Ppl
-                    write(*,*) "Pleural pressure from perfusion model (gradient): ", unit_field(nu_perfppl,nu) ! -> /= 0
+                    !write(*,*) "Pleural pressure from perfusion model (gradient): ", unit_field(nu_perfppl,nu) ! -> /= 0
                 !endif
                 Lin=elem_field(ne_length,ne0)
                 Lout=elem_field(ne_length,ne1)
@@ -304,12 +310,12 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                         Ppl,Q01,Rin,Rout,x_cap,y_cap,z_cap,&
                         .FALSE.)
                  elem_field(ne_resist,ne)=LPM_R
-                 write(*,*) "Pleural pressure  (gradient) after calling SR cap_flow_ladder: ", unit_field(nu_perfppl,nu) ! -> /= 0
+                 !write(*,*) "Pleural pressure  (gradient) after calling SR cap_flow_ladder: ", unit_field(nu_perfppl,nu) ! -> /= 0
               endif
            enddo
-           write(*,*) "Pleural pressure(100) (gradient) after do loop: ", unit_field(nu_perfppl,100) ! =0 -> why?
+           !write(*,*) "Pleural pressure(100) (gradient) after do loop: ", unit_field(nu_perfppl,100) ! =0 -> why?
          endif
-        write(*,*) "Pleural pressure(100) (gradient) after second if : ", unit_field(nu_perfppl,100) ! =0 -> why?
+        !write(*,*) "Pleural pressure(100) (gradient) after second if : ", unit_field(nu_perfppl,100) ! =0 -> why?
         
          ERR=ERR/MatrixSize !sum of error divided by no of unknown depvar
          if(ERR.LE.1.d-6.AND.(KOUNT.NE.1))then
@@ -325,7 +331,6 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
          endif !ERR not converged
       endif!vessel type
     enddo !notconverged
-write(*,*) 'After iterative loop'
     
 !need to write solution to element/nodal fields for export
     call map_solution_to_mesh(prq_solution,depvar_at_elem,depvar_at_node,mesh_dof)
@@ -343,6 +348,7 @@ write(*,*) 'After iterative loop'
     deallocate (SparseRow, STAT = AllocateStatus)
     deallocate (RHS, STAT = AllocateStatus)
     deallocate (update_resistance_entries, STAT=AllocateStatus)
+
     call enter_exit(sub_name,2)
   end subroutine evaluate_prq
 !
@@ -848,7 +854,6 @@ subroutine calc_sparse_size(mesh_dof,depvar_at_elem,depvar_at_node,FIX,NonZeros,
   nzz_row=1 !position in SparseRow
   ost1=0!offset
   ost2=0!offset
-
   do ne=1,num_elems
      !ne=elems(noelem)!elem no
      np1=elem_nodes(2,ne) !second node in that element
