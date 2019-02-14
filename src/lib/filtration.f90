@@ -36,7 +36,7 @@ module filtration
   subroutine calculate_flow(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc, L_p, sigma, pi_c, pi_alv, c_L)  
     !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_CALCULATE_FLOW" :: CALCULATE_FLOW
   
-    use diagnostics, only: enter_exit
+    use diagnostics, only: enter_exit,get_diagnostics_on
     use arrays, only: num_elems,num_elems_aw,elem_field
     use pressure_resistance_flow
     use indices!, only: num_ne
@@ -58,21 +58,22 @@ module filtration
     integer :: ne
     character(len=60) :: sub_name
     logical :: arg
+    logical :: diags
     
     ! ###########################################################################
     
     !sub_name = 'calculate_flow'
     call enter_exit(sub_name,1)
-     
+    call get_diagnostics_on(diags)
     num_elems_aw = 0
     do ne=1,num_elems
       if(elem_field(ne_group,ne).eq.0.0_dp)then !Artery or airway
         num_elems_aw = num_elems_aw + 1
       endif
     enddo
-    write(*,*) num_elems_aw
 
-    write(*,*) "Call SR evaluate_vent_edema"
+
+    if(diags)write(*,*) "Call SR evaluate_vent_edema"
     call evaluate_vent_edema(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc, L_p, sigma, pi_c, pi_alv, c_L)
        
     call enter_exit(sub_name,2)
@@ -89,7 +90,7 @@ module filtration
     use indices!,only: ne_Vdot,ne_Vdot0,ne_t_resist,nj_aw_press,nu_air_press,nu_comp,nu_dpdt,nu_pe,nu_rad,nu_SA,nu_vt
     use exports,only: export_1d_elem_field,export_terminal_solution
     use other_consts !PI
-    use diagnostics, only: enter_exit
+    use diagnostics, only: enter_exit,get_diagnostics_on
     use geometry,only: set_initial_volume,volume_of_mesh
     use pressure_resistance_flow
     implicit none
@@ -97,6 +98,7 @@ module filtration
     ! Inputs for Perfusion Model
     real(dp) :: grav_factor,inlet_bc,outlet_bc
     integer :: grav_dirn
+    integer :: perf_call_number
     character(len=60) :: mesh_type,bc_type
     
     ! In-/Output for Filtration
@@ -120,6 +122,7 @@ module filtration
     real(dp), allocatable :: check_vol(:)
     character :: expiration_type*(10)
     logical :: CONTINUE,converged
+    logical :: diags
 
     character(len=60) :: sub_name
 
@@ -127,7 +130,8 @@ module filtration
 
     sub_name = 'evaluate_vent_edema'
     call enter_exit(sub_name,1)
-    
+    call get_diagnostics_on(diags)
+
     init_vol = 1.0_dp
 
 !!! -------------  DESCRIPTION OF IMPORTANT VARIABLES ---------------
@@ -175,6 +179,7 @@ module filtration
 !!! set default values for the parameters that control the breathing simulation
 !!! these should be controlled by user input (showing hard-coded for now)
 
+    perf_call_number = 0
 
     call read_params_evaluate_flow_edema(Gdirn, chest_wall_compliance, &
        constrict, COV, FRC, i_to_e_ratio, pmus_step, press_in,&
@@ -202,7 +207,7 @@ module filtration
 
     write(*,'('' Anatomical deadspace = '',F8.3,'' ml'')') volume_tree/1.0e+3_dp ! in mL
     write(*,'('' Respiratory volume   = '',F8.3,'' L'')') (init_vol-volume_tree)/1.0e+6_dp !in L
-    write(*,'('' Total lung volume    = '',F8.3,'' L'')') init_vol/1.0e+6_dp !in L    
+    write(*,'('' Total lung volume    = '',F8.3,'' L'')') init_vol/1.0e+6_dp !in L
     unit_field(nu_dpdt,1:num_units) = 0.0_dp
 
 !!! calculate the compliance of each tissue unit
@@ -225,7 +230,7 @@ module filtration
          &1X,''(L/cmH)'',1X,''(...cmH2O...)'',&
          &4X,''(L)'',5X,''(......cmH2O.......)'')')
 
-    WRITE(*,'(F7.3,2(F8.1),8(F8.2))') &
+    write(*,'(F7.3,2(F8.1),8(F8.2))') &
          0.0,0.0,0.0, &  !time, flow, tidal
          elem_field(ne_t_resist,1)*1.0e+6_dp/98.0665_dp, & !airway resistance (cmH2O/L.s)
          totalC*98.0665_dp/1.0e+6_dp, & !total model compliance
@@ -356,17 +361,17 @@ module filtration
           if(n.GT.1)then
             if(check_vol(n-1).LT.0.1_dp)then
                 
-                write(*,*) "Filtration calculated in this breath :"
+           if(diags)write(*,*) "Filtration calculated in this breath :"
           
           ! Calculate Ppl = -Pel + Palv
             call update_pleural_pressure_edema
-            !write(*,*) "Pleural pressure from ventilation model for unit 100 -> Ppl = -Pel = Palv: ", unit_field(nu_ppl, 100)
+            !!write(*,*) "Pleural pressure from ventilation model for unit 100 -> Ppl = -Pel = Palv: ", unit_field(nu_ppl, 100)
                 
           ! Get filtration surface area SA in mm^2
             call update_surface_area_edema
-                
+            perf_call_number = perf_call_number + 1
           ! Get capillary hydrostatic pressure P_c in mmH2O (-> perfusion model)
-            write(*,*) "Call SR evaluate_prq from perfusion model"
+            if(diags)write(*,*) "Call SR evaluate_prq from perfusion model", time,n,perf_call_number
             call evaluate_prq(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc)
         
           ! Calculate transcapillary fluid flow J_v per time step according to Starling Equation in m^3
@@ -377,7 +382,7 @@ module filtration
           endif
     
           time = time + dt
-          WRITE(*,'(F7.3,2(F8.1),8(F8.2))') &
+          write(*,'(F7.3,2(F8.1),8(F8.2))') &
                time, & !time through breath (s)
                elem_field(ne_Vdot,1)/1.0e+3_dp, & !flow at the inlet (mL/s)
                (now_vol - init_vol)/1.0e+3_dp, & !current tidal volume (mL)
@@ -408,7 +413,7 @@ module filtration
 
        !...  CHECK WHETHER TO CONTINUE     
        check_vol(n) = DABS(100.0_dp*(volume_target-sum_tidal)/volume_target)
-       write(*,*) "check_vol for this breath calculated"
+       !write(*,*) "check_vol for this breath calculated"
        if(n.ge.num_brths)then
           CONTINUE=.FALSE.
        elseif(DABS(volume_target).GT.1.0e-3_dp)THEN
@@ -897,7 +902,7 @@ module filtration
   !     J_v = L_p * S * ((P_c - P_alv) - sigma * (pi_c - pi_alv))
           
     use arrays,only: dp,num_units,unit_field, elem_nodes,node_field,units_vent
-    use diagnostics, only: enter_exit
+    use diagnostics, only: enter_exit,get_diagnostics_on
     use indices!,only: nu_SA,nu_rad
     use other_consts,only: PI
     use exports, only: export_starling_variables
@@ -916,6 +921,7 @@ module filtration
     real(dp) :: J_v                     ! Filtration per time step (without lymphatic clearance)
     
     integer :: nunit, ne, np2
+    logical :: diags
 
     character(len=60) :: sub_name
 
@@ -923,31 +929,38 @@ module filtration
 
     sub_name = 'update_filtration_edema'
     call enter_exit(sub_name,1)
+    call get_diagnostics_on(diags)
     
     ! calculate filtration J_v for all elastic units per time step (= unit_field(nu_filt,nunit))
         do  nunit=1,num_units
             ne=units_vent(nunit)
             np2=elem_nodes(2,ne)
+
+            if(diags)write(*,*) 'blood press', nunit,unit_field(nu_blood_press,nunit),nu_blood_press
+            if(unit_field(nu_blood_press,nunit).eq.0.0_dp)then
+            endif
             ! calculate Filtration J_v per time step (without lymphatic clearance)
             unit_field(nu_filt,nunit) = L_p * unit_field(nu_SA,nunit) * &
                 ((unit_field(nu_blood_press,nunit) - node_field(nj_aw_press,np2)) &
                 - sigma * (pi_c - pi_alv)) * dt 
-            write(*,*) "Filtration without clearance: ", unit_field(nu_filt,nunit)
-            !write(*,*) "Lymphatic Clearance: ", c_L*dt           
+            if(diags)write(*,*) "Filtration without clearance: ", unit_field(nu_filt,nunit),unit_field(nu_blood_press,nunit),&
+              node_field(nj_aw_press,np2),dt
+
+            !write(*,*) "Lymphatic Clearance: ", c_L*dt
             ! Check: Lymphatic Clearance c_L*dt > J_v?
             !if(c_L*dt.gt.J_v) then
                  !unit_field(nu_filt,nunit) = 0.0_dp         ! Filtration gets cleared by lymph flow
-                 !write(*,*) "Filtration cleared by lymphatic clearance"
+                 !!write(*,*) "Filtration cleared by lymphatic clearance"
             !else
                  !unit_field(nu_filt,nunit) = J_v !- c_L*dt   ! Lymph flow too low to clear filtration -> edema
-                 !write(*,*) "Filtration not cleared by lymphatic clearance -> edema"
+                 !!write(*,*) "Filtration not cleared by lymphatic clearance -> edema"
             !endif
                        
             ! Summarized Filtration for whole lung (all units) per time step (after lymphatic clearance)
             !Jv_sum = 0.0_dp
             !Jv_sum = unit_field(nu_filt,nunit) + Jv_sum
-            write(*,*) "Pleural pressure from perfusion model (gradient) in filtration.f90", unit_field(nu_perfppl,nunit)
-            !write(*,*) "Capillary pressure from perfusion model in filtration.f90", unit_field(nu_blood_press,nunit)
+            !write(*,*) "Pleural pressure from perfusion model (gradient) in filtration.f90", unit_field(nu_perfppl,nunit)
+            !!write(*,*) "Capillary pressure from perfusion model in filtration.f90", unit_field(nu_blood_press,nunit)
         enddo !nounit
 
         ! Export all the values that go into the Starling equation
@@ -1056,7 +1069,6 @@ module filtration
             node_field(nj_aw_press,np2)
        !ppl_edema(nunit) = unit_field(nu_ppl,nunit)
     enddo !noelem
-
     call enter_exit(sub_name,2)
 
   end subroutine update_pleural_pressure_edema 
@@ -1114,14 +1126,14 @@ module filtration
        ! calculate inner radius for each unit
        unit_field(nu_rad,nunit) = (3/(4*PI) * unit_field(nu_vol,nunit))**(1.0/3.0)
 
-       !write(*,*) "Radius unit nu"
-       !write(*,*) unit_field(nu_rad,nunit)
+       !!write(*,*) "Radius unit nu"
+       !!write(*,*) unit_field(nu_rad,nunit)
        
        ! calculate surface area for each unit
        unit_field(nu_SA,nunit) = 4.0 * PI * unit_field(nu_rad,nunit)**2.0
        
-       !write(*,*) "Surface area unit nu"
-       !write(*,*) unit_field(nu_SA,nunit)
+       !!write(*,*) "Surface area unit nu"
+       !!write(*,*) unit_field(nu_SA,nunit)
        
     enddo !nounit
 

@@ -301,7 +301,10 @@ contains
 
 !#########################################################################
 ! 
-subroutine export_parameters_edema_c(PARAMFILE, filename_len, group_name, group_name_len, mesh_type, mesh_type_len, grav_dirn, grav_factor, bc_type, bc_type_len, inlet_bc, outlet_bc, L_p, sigma, pi_c, pi_alv, c_L) bind(C, name="export_parameters_edema_c")
+subroutine export_parameters_edema_c(PARAMFILE, filename_len, group_name,&
+ group_name_len, mesh_type, mesh_type_len, grav_dirn, grav_factor, bc_type,&
+  bc_type_len, inlet_bc, outlet_bc,L_p, sigma, pi_c, pi_alv, c_L)&
+   bind(C, name="export_parameters_edema_c")
 
     use arrays,only: dp
     use iso_c_binding, only: c_ptr
@@ -330,9 +333,13 @@ subroutine export_parameters_edema_c(PARAMFILE, filename_len, group_name, group_
     call strncpy(bc_type_f, bc_type, bc_type_len)
 
 #if defined _WIN32 && defined __INTEL_COMPILER
-call so_export_parameters_edema(filename_f, group_name_f, mesh_type_f, grav_dirn, grav_factor, bc_type_f, inlet_bc, outlet_bc, L_p, sigma, pi_c, pi_alv, c_L)
+call so_export_parameters_edema(filename_f, group_name_f,&
+ mesh_type_f, grav_dirn, grav_factor, bc_type_f, inlet_bc, outlet_bc,&
+  L_p, sigma, pi_c, pi_alv, c_L)
 #else
-call export_parameters_edema(filename_f, group_name_f, mesh_type_f, grav_dirn, grav_factor, bc_type_f, inlet_bc, outlet_bc, L_p, sigma, pi_c, pi_alv, c_L)
+call export_parameters_edema(filename_f, group_name_f,&
+ mesh_type_f, grav_dirn, grav_factor, bc_type_f, inlet_bc, outlet_bc,&
+  L_p, sigma, pi_c, pi_alv, c_L)
 #endif
 
 end subroutine export_parameters_edema_c
