@@ -18,6 +18,7 @@ void export_data_geometry_c(const char *EXDATAFILE, int *EXDATAFILE_LEN, const c
 void export_elem_field_c(const char *EXELEMFIELD, int *EXELEMFIELD_LEN,
                          const char *name, int *name_len, const char *field_name, int *field_name_len);
 void export_parameters_edema_c(const char *PARAMFILE, int *PARAMFILE_LEN, const char *group_name, int *group_name_len, const char *mesh_type, int *mesh_type_len, int *grav_dirn, double *grav_factor, const char *bc_type, int *bc_type_len, double *inlet_bc, double *outlet_bc, double *L_p, double *sigma, double *pi_c, double *pi_alv, double *c_L);
+void export_terminal_starling_variables_c(const char *EXNODEFILE, int *EXNODEFILE_LEN, const char *name, int *name_len);
 
 void export_1d_elem_field(int ne_field, const char *EXELEMFILE, const char *group_name, const char *field_name )
 {
@@ -118,4 +119,12 @@ void export_parameters_edema(const char *PARAMFILE, const char *group_name, cons
 	int bc_type_len = strlen(bc_type);
 
 	export_parameters_edema_c(PARAMFILE, &filename_len, group_name, &group_name_len, mesh_type, &mesh_type_len, &grav_dirn, &grav_factor, bc_type, &bc_type_len, &inlet_bc, &outlet_bc, &L_p, &sigma, &pi_c, &pi_alv, &c_L);
+}
+
+void export_terminal_starling_variables(const char *EXNODEFILE, const char *name)
+{
+	int filename_len = strlen(EXNODEFILE);
+	int name_len = strlen(name);
+
+	export_terminal_starling_variables_c(EXNODEFILE, &filename_len, name, &name_len);
 }

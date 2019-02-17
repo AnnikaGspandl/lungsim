@@ -17,7 +17,7 @@ module indices
   integer :: num_ord=3,no_gen=1,no_hord=2,no_sord=3
   ! indices for node_fields
   integer :: num_nj,nj_aw_press,nj_bv_press,nj_conc1,&
-     nj_conc2
+     nj_conc2, nj_aw_press_av
   ! indices for elem_field
   integer ::num_ne,ne_radius,ne_length,ne_vol,&
       ne_resist,ne_t_resist,ne_Vdot,ne_Vdot0,ne_a_A,&
@@ -27,7 +27,8 @@ module indices
   ! indices for unit_field
   integer :: num_nu,nu_vol,nu_comp,nu_conc2,nu_Vdot0,nu_Vdot1, &
        nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl,nu_conc1,nu_vent,&
-       nu_vd,nu_perf,nu_blood_press, nu_filt, nu_perfppl
+       nu_vd,nu_perf,nu_blood_press, nu_filt, nu_filt_cleared, nu_filt_cleared_sum, nu_clearance,&
+       nu_perfppl, nu_blood_press_av, nu_perfppl_av, nu_ppl_av, nu_filt_av, nu_filt_cleared_av
   !indices for gas exchange field
 ! indices for gasex_field
   integer,parameter :: num_gx = 12
@@ -49,7 +50,7 @@ module indices
 
 public num_ord,no_gen,no_hord,no_sord
 
-public num_nj,nj_aw_press,nj_bv_press, nj_conc1,nj_conc2
+public num_nj,nj_aw_press,nj_bv_press, nj_conc1,nj_conc2, nj_aw_press_av
 
 public num_ne,ne_radius,ne_length,ne_vol,&
       ne_resist,ne_t_resist,ne_Vdot,ne_Vdot0,ne_a_A,&
@@ -60,7 +61,9 @@ public num_ne,ne_radius,ne_length,ne_vol,&
 public num_nu,nu_vol,nu_comp, nu_conc2,nu_Vdot0,nu_Vdot1, &
        nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl, &
        nu_conc1,nu_vent,nu_vd,&
-       nu_perf,nu_blood_press, nu_filt, nu_perfppl
+       nu_perf,nu_blood_press, nu_filt, nu_filt_cleared,nu_filt_cleared_sum,&
+       nu_clearance, nu_perfppl, nu_blood_press_av, nu_perfppl_av, nu_ppl_av, &
+       nu_filt_av, nu_filt_cleared_av
 
 public num_gx, ng_p_alv_o2,ng_p_alv_co2,ng_p_ven_o2,ng_p_ven_co2, &
        ng_p_cap_o2, ng_p_cap_co2,ng_source_o2,ng_source_co2, &
@@ -320,9 +323,10 @@ contains
     call enter_exit(sub_name,1)
     ! indices for elem_ordrs. These dont usually change.
     ! indices for node_field
-    num_nj=2 !number of nodal fields
+    num_nj=3 !number of nodal fields
     nj_bv_press=1 !perfusion: pressure in blood vessel
     nj_aw_press=2 !ventilation: air pressure
+    nj_aw_press_av=3 !average air pressure over all time steps
     ! indices for elem_field
     num_ne=17 !number of element fields
     ne_aw_radius=1 !radius of airway
@@ -345,7 +349,7 @@ contains
     ne_group=16!Groups vessels into arteries (field=0), capillaries (field=1) and veins(field=2)
     ne_unit=17
     ! indices for unit_field
-    num_nu=17 ! number of unit fields
+    num_nu=25 ! number of unit fields
     !Ventilation
     nu_vol=1
     nu_comp=2
@@ -365,8 +369,17 @@ contains
     nu_blood_press=15
     ! Filtration J_v
     nu_filt=16 ! Filtration in mm^3 per time step
+    nu_filt_cleared=17 ! Filtration in mm^3 after lymphatic clearance per time step
+    nu_filt_cleared_sum = 18 ! Filtration in mm^3 after whole breath per unit
+    nu_clearance = 19 ! Lymphatic Clearance
     !pleural pressure gradient (perfusion model)
-    nu_perfppl=17
+    nu_perfppl=20
+    !average values for terminal export
+    nu_blood_press_av=21
+    nu_perfppl_av=22
+    nu_ppl_av=23
+    nu_filt_av=24
+    nu_filt_cleared_av=25
     
     call enter_exit(sub_name,2)
   end subroutine filtration_indices

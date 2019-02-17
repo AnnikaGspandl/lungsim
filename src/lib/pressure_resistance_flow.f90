@@ -212,6 +212,12 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
       print*, 'Outer loop iterations:',KOUNT
       
 !!! Initialise solution vector based on bcs and rigid vessel resistance
+    !if(EDEMA)then !take values from previous time step -> same code as if not first loop 
+    !    do ne=1,num_elems !update for all ne
+    !      nz=update_resistance_entries(ne)
+    !      SparseVal(nz)=-elem_field(ne_resist,ne) !Just updating resistance
+    !    enddo
+    !else
       if(KOUNT.eq.1)then!set up boundary conditions
         if(bc_type.eq.'pressure')then
           if(mesh_type.eq.'full_plus_ladder')then
@@ -237,6 +243,8 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
           SparseVal(nz)=-elem_field(ne_resist,ne) !Just updating resistance
         enddo
       endif!first or subsequent iteration
+    !endif
+      
 !! ----CALL SOLVER----
       call pmgmres_ilu_cr(MatrixSize, NonZeros, SparseRow, SparseCol, SparseVal, &
          solver_solution, RHS, 500, 500,1.d-5,1.d-4,SOLVER_FLAG)
@@ -302,7 +310,6 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                 !write(*,*) 'what is ppl from vent', unit_field(nu_ppl,nu),nu_ppl,nu
                     call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Ppl)
                     unit_field(nu_perfppl,nu)=Ppl
-                    !write(*,*) "Pleural pressure from perfusion model (gradient): ", unit_field(nu_perfppl,nu) ! -> /= 0
                 !endif
                 Lin=elem_field(ne_length,ne0)
                 Lout=elem_field(ne_length,ne1)
@@ -310,12 +317,9 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                         Ppl,Q01,Rin,Rout,x_cap,y_cap,z_cap,&
                         .FALSE.)
                  elem_field(ne_resist,ne)=LPM_R
-                 !write(*,*) "Pleural pressure  (gradient) after calling SR cap_flow_ladder: ", unit_field(nu_perfppl,nu) ! -> /= 0
               endif
            enddo
-           !write(*,*) "Pleural pressure(100) (gradient) after do loop: ", unit_field(nu_perfppl,100) ! =0 -> why?
          endif
-        !write(*,*) "Pleural pressure(100) (gradient) after second if : ", unit_field(nu_perfppl,100) ! =0 -> why?
         
          ERR=ERR/MatrixSize !sum of error divided by no of unknown depvar
          if(ERR.LE.1.d-6.AND.(KOUNT.NE.1))then
