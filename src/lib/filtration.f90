@@ -123,8 +123,8 @@ module filtration
     character :: expiration_type*(10)
     logical :: CONTINUE,converged
     logical :: diags
-    character(len=36) :: filenametime
-    character(len=26) :: filename
+    character(len=37) :: filenametime
+    character(len=27) :: filename
     character(len=10) :: timestep_char
 
     character(len=60) :: sub_name
@@ -392,9 +392,11 @@ module filtration
             
           ! Define name of export file in this time step
             filename = '_starling_variables.exnode'
+            write(*,*) filename
             write (timestep_char, "(A8,I2)")  "Timestep", timestep_int
             timestep_char = trim(timestep_char)
             filenametime =  timestep_char//filename
+            write(*,*) filenametime
             
           ! Export all the values that go into the Starling equation
             call export_starling_variables(filenametime,'filt_model')!(time, ttime,Jv_sum)
@@ -475,6 +477,21 @@ module filtration
 
 !    call export_terminal_solution(TERMINAL_EXNODEFILE,'terminals')
 
+    ! Calculate average values for terminal export file of all until now calculated timesteps
+        ! Average Filtration without clearance
+        unit_field(nu_filt_av,:) = unit_field(nu_filt_av,:)/timestep_int
+        ! Average Filtration after clearance
+        unit_field(nu_filt_cleared_av,:) = unit_field(nu_filt_cleared_sum,:)/timestep_int
+        ! Sum capillary pressure
+        unit_field(nu_blood_press_av,:) = unit_field(nu_blood_press_av,:)/timestep_int
+        ! Average pleural pressure (gradient from perfusion model)
+        unit_field(nu_perfppl_av,:) = unit_field(nu_perfppl_av,:)/timestep_int
+        ! Sum pleural pressure (ventilation model)
+        unit_field(nu_ppl_av,:) = unit_field(nu_ppl_av,:)/timestep_int
+        ! Sum alveolar pressure
+        node_field(nj_aw_press_av,:) = node_field(nj_aw_press_av,:)/timestep_int
+              
+    
     call enter_exit(sub_name,2)
 
   end subroutine evaluate_vent_edema
@@ -1014,7 +1031,7 @@ module filtration
  !!!###################################################################################
  
    subroutine calculate_terminal_exports(timestep_int)!, Jv_sum)
-  !!!   Calculates the average values Pcap, Ppl (perfusion model and ventilation model), Palv,&
+  !!!   Calculates the summarized values Pcap, Ppl (perfusion model and ventilation model), Palv,&
   !     Filtration (with/without clearance) for one whole breath and the summarized filtration &
   !     after clearance for whole lung
           
@@ -1041,7 +1058,7 @@ module filtration
     ! Initialise summarized filtration Jv_sum over whole lung per time step
 !        Jv_sum = 0.0_dp
         
-    ! calculate average values for all elastic units per time step (= unit_field(nu_...,nunit))
+    ! calculate summarized values for all elastic units per time step (= unit_field(nu_...,nunit))
         do  nunit=1,num_units
             ne=units_vent(nunit)
             np2=elem_nodes(2,ne)
@@ -1061,23 +1078,7 @@ module filtration
                 node_field(nj_aw_press_av,np2) = node_field(nj_aw_press_av,np2) + node_field(nj_aw_press,np2)
                             
         enddo !nounit
-        
-        ! Calculate average values for terminal export file of all until now calculated timesteps
-            ! Average Filtration without clearance
-            unit_field(nu_filt_av,:) = unit_field(nu_filt_av,:)/timestep_int
-            ! Average Filtration after clearance
-            unit_field(nu_filt_cleared_av,:) = unit_field(nu_filt_cleared_sum,:)/timestep_int
-            ! Sum capillary pressure
-            unit_field(nu_blood_press_av,:) = unit_field(nu_blood_press_av,:)/timestep_int
-            ! Average pleural pressure (gradient from perfusion model)
-            unit_field(nu_perfppl_av,:) = unit_field(nu_perfppl_av,:)/timestep_int
-            ! Sum pleural pressure (ventilation model)
-            unit_field(nu_ppl_av,:) = unit_field(nu_ppl_av,:)/timestep_int
-            ! Sum alveolar pressure
-            node_field(nj_aw_press_av,:) = node_field(nj_aw_press_av,:)/timestep_int
-            
-            
-            
+                   
         
     call enter_exit(sub_name,2)
 

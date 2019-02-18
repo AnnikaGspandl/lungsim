@@ -825,17 +825,18 @@ contains
     implicit none
 
 !!! Parameters
-    character,intent(in) :: EXNODEFILE
+    character(len=37),intent(in) :: EXNODEFILE
     character,intent(in) :: name
 
 !!! Local Variables
     integer :: len_end,ne,nj,NOLIST,np,np_last,VALUE_INDEX
     logical :: FIRST_NODE
 
+
     if(num_units.GT.0) THEN
        open(10, file=EXNODEFILE, status='replace')
        !**     write the group name
-       write(10,'( '' Group name: '',A)') 'name'
+       write(10,'( '' Group name: '',A)') name
        FIRST_NODE=.TRUE.
        np_last=1
        !*** Exporting Terminal Solution
@@ -887,12 +888,12 @@ contains
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
                           VALUE_INDEX=VALUE_INDEX+1
             !Lymphatic Clearance
-             write(10,'('' 7) Lymphatic Clearance, field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 8) Lymphatic Clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
                           VALUE_INDEX=VALUE_INDEX+1
              !Filtration after lymphatic clearance
-             write(10,'('' 8) Filtration after lymphatic clearance, field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 9) Filtration after lymphatic clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
           endif !FIRST_NODE
@@ -906,9 +907,9 @@ contains
            write(10,'(2X,4(1X,F12.6))') (unit_field(nu_perfppl,NOLIST)) !pleural pressure (gradient from perfusion model)
            write(10,'(2X,4(1X,F12.6))') (unit_field(nu_ppl,NOLIST)) !pleural pressure (ventilation model)
            write(10,'(2X,4(1X,F12.6))') (node_field(nj_aw_press,np)) !Alveolar pressure
-           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_filt,NOLIST)) !filtration without clearance
-           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_clearance,NOLIST)) !Lymphatic Clearance
-           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_filt_cleared,NOLIST)) !filtration after clearance
+           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_filt,NOLIST)) !filtration without clearance
+           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_clearance,NOLIST)) !Lymphatic Clearance
+           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_filt_cleared,NOLIST)) !filtration after clearance
           FIRST_NODE=.FALSE.
           np_last=np
        enddo !nolist (np)
@@ -917,7 +918,8 @@ contains
     
   end subroutine export_starling_variables
   
-  !!! ##########################################################
+  !!! ##########################################################      
+       
   subroutine export_terminal_starling_variables(EXNODEFILE, name)
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EXPORT_TERMINAL_STARLING_VARIABLES" :: EXPORT_TERMINAL_STARLING_VARIABLES
 
@@ -938,7 +940,7 @@ contains
     if(num_units.GT.0) THEN
        open(10, file=EXNODEFILE, status='replace')
        !**     write the group name
-       write(10,'( '' Group name: '',A)') 'name'
+       write(10,'( '' Group name: '',A)') name
        FIRST_NODE=.TRUE.
        np_last=1
        !*** Exporting Terminal Solution
@@ -950,7 +952,7 @@ contains
           !*** Write the field information
           VALUE_INDEX=1
           if(FIRST_NODE)THEN
-             write(10,'( '' #Fields=7'' )')
+             write(10,'( '' #Fields=9'' )')
              write(10,'('' 1) coordinates, coordinate, rectangular cartesian, #Components=3'')')
              do nj=1,3
                 if(nj.eq.1) write(10,'(2X,''x.  '')',advance="no")
@@ -980,7 +982,7 @@ contains
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
              VALUE_INDEX=VALUE_INDEX+1
              !Average filtration without clearance
-             write(10,'('' 7) Filtration without clearance, field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 6) Average filtration without clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
                           VALUE_INDEX=VALUE_INDEX+1
@@ -990,11 +992,11 @@ contains
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
                           VALUE_INDEX=VALUE_INDEX+1
              !Average filtration after lymphatic clearance
-             write(10,'('' 8) Filtration after lymphatic clearance, field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 8) Average filtration after lymphatic clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
              !Summarized filtration without clearance
-             write(10,'('' 7) Summarized filtration without clearance, field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 9) Summarized filtration without clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
                           VALUE_INDEX=VALUE_INDEX+1
@@ -1008,10 +1010,10 @@ contains
            write(10,'(2X,4(1X,F12.6))') (unit_field(nu_perfppl_av,NOLIST)) !average pleural pressure (gradient from perfusion model)
            write(10,'(2X,4(1X,F12.6))') (unit_field(nu_ppl_av,NOLIST)) !average pleural pressure (ventilation model)
            write(10,'(2X,4(1X,F12.6))') (node_field(nj_aw_press_av,np)) !average Alveolar pressure
-           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_filt_av,NOLIST)) !average filtration without clearance
-           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_clearance,NOLIST)) !Lymphatic Clearance
-           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_filt_cleared_av,NOLIST)) !average filtration after clearance
-           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_filt_cleared_sum,NOLIST)) !summarized filtration after clearance
+           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_filt_av,NOLIST)) !average filtration without clearance
+           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_clearance,NOLIST)) !Lymphatic Clearance
+           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_filt_cleared_av,NOLIST)) !average filtration after clearance
+           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_filt_cleared_sum,NOLIST)) !summarized filtration after clearance
           FIRST_NODE=.FALSE.
           np_last=np
        enddo !nolist (np)
