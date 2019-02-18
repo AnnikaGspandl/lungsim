@@ -57,7 +57,7 @@ contains
     ! Define logical EDEMA for if statements regarding Ppl (not yet implemented as input)
     !                EDEMA =.TRUE. for modeling edema -> Ppl calculated via ventilation model
     !                EDEMA=.FALSE. for 'normal' modeling -> Ppl as linear gradient
-    logical :: EDEMA=.FALSE.
+    logical :: EDEMA=.True.
 
     sub_name = 'evaluate_prq'
     call enter_exit(sub_name,1)
@@ -303,14 +303,17 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                 x_cap=node_xyz(1,elem_nodes(1,ne))
                 y_cap=node_xyz(2,elem_nodes(1,ne))
                 z_cap=node_xyz(3,elem_nodes(1,ne))
-                ! for Modelling of Edema:
-                !if (EDEMA)then
-                    !Ppl = unit_field(nu_ppl,elem_nodes(1,ne))
-                !else
-                !write(*,*) 'what is ppl from vent', unit_field(nu_ppl,nu),nu_ppl,nu
-                    call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Ppl)
-                    unit_field(nu_perfppl,nu)=Ppl
-                !endif
+                
+                call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Ppl)                 
+                unit_field(nu_perfppl,nu)=Ppl
+                
+                ! for Modelling of Edema:    
+                    ! If EDEMA=.True. -> call SR calculate_ppl_edema that overwrites Ppl and sets Ppl to the 
+                    ! for unit nu calculated value from ventilation model (for every ne that is mapped to nu)
+                    if(EDEMA)then
+                        call calculate_ppl_edema(nu,Ppl)
+                    endif
+                    
                 Lin=elem_field(ne_length,ne0)
                 Lout=elem_field(ne_length,ne1)
                  call cap_flow_ladder(ne,LPM_R,Lin,Lout,P1,P2,&
@@ -1099,6 +1102,29 @@ subroutine calculate_ppl(np,grav_vect,mechanics_parameters,Ppl)
 
     call enter_exit(sub_name,2)
 end subroutine calculate_ppl
+
+!!!!#################################################################################
+
+!*calculate_ppl_edema:* sets Ppl to in ventilation model calculated value (unit_field(nu_ppl,nu)
+subroutine calculate_ppl_edema(nu,Ppl)
+
+    use indices
+    use arrays,only: dp,unit_field
+    use diagnostics, only: enter_exit
+    integer, intent(in) :: nu
+    real(dp), intent(out) :: Ppl
+    !Local variables
+
+    character(len=60) :: sub_name
+
+    sub_name = 'calculate_ppl_edema'
+
+    call enter_exit(sub_name,1)
+
+    Ppl = unit_field(nu_ppl,nu)
+
+    call enter_exit(sub_name,2)
+end subroutine calculate_ppl_edema
 
 !!!!#################################################################################
 !! 
