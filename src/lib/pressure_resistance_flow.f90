@@ -57,7 +57,7 @@ contains
     ! Define logical EDEMA for if statements regarding Ppl (not yet implemented as input)
     !                EDEMA =.TRUE. for modeling edema -> Ppl calculated via ventilation model
     !                EDEMA=.FALSE. for 'normal' modeling -> Ppl as linear gradient
-    logical :: EDEMA=.True.
+    logical :: EDEMA=.True.     ! When changing value -> change in whole .f90 file!
 
     sub_name = 'evaluate_prq'
     call enter_exit(sub_name,1)
@@ -290,6 +290,7 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
 
 !Put the ladder stuff here --> See solve11.f
          if(mesh_type.eq.'full_plus_ladder')then
+             write(*,*) "Do Loop over elements in ladder calculation:"
            do ne=1,num_elems
               if(elem_field(ne_group,ne).eq.1.0_dp)then!(elem_field(ne_group,ne)-1.0_dp).lt.TOLERANCE)then
                 ne0=elem_cnct(-1,1,ne)!upstream element number
@@ -304,9 +305,12 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                 y_cap=node_xyz(2,elem_nodes(1,ne))
                 z_cap=node_xyz(3,elem_nodes(1,ne))
                 
+                      write(*,*) "Ladder Calculation: num_elems, ne, nu", num_elems, ne, nu
+                      write(*,*) "ne, elem_field(ne_unit,ne:)", ne, elem_field(ne_unit,ne)
+                      
                 call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Ppl)                 
                 unit_field(nu_perfppl,nu)=Ppl
-                
+                Pause
                 ! for Modelling of Edema:    
                     ! If EDEMA=.True. -> call SR calculate_ppl_edema that overwrites Ppl and sets Ppl to the 
                     ! for unit nu calculated value from ventilation model (for every ne that is mapped to nu)
@@ -938,6 +942,7 @@ subroutine calc_press_area(grav_vect,KOUNT,depvar_at_node,prq_solution,&
     use indices
     use arrays,only: dp,num_nodes,num_elems,elem_field,elem_nodes,node_xyz
     use diagnostics, only: enter_exit
+    
     character(len=60), intent(in) :: vessel_type
     real(dp), intent(in) :: grav_vect(3)
     integer,intent(in) :: KOUNT,mesh_dof
@@ -946,9 +951,10 @@ subroutine calc_press_area(grav_vect,KOUNT,depvar_at_node,prq_solution,&
     real(dp),intent(in) :: elasticity_parameters(3),mechanics_parameters(2)
 
 !local variables
-    integer :: nj,np,ne,ny,nn
+    integer :: nj,np,ne,ny,nn,nu
     real(dp) :: h,Ptm,R0,Pblood,Ppl
-
+    logical :: EDEMA=.True.
+    
     character(len=60) :: sub_name
     sub_name = 'calc_press_area'
     call enter_exit(sub_name,1)
@@ -959,12 +965,24 @@ subroutine calc_press_area(grav_vect,KOUNT,depvar_at_node,prq_solution,&
       enddo !elems
     endif
 
-    do ne=1,num_elems
+    do ne=1,num_elems     
       do nn=1,2
         if(nn.eq.1) np=elem_nodes(1,ne)
         if(nn.eq.2) np=elem_nodes(2,ne)
         ny=depvar_at_node(np,0,1)
+        
         call calculate_ppl(np,grav_vect,mechanics_parameters,Ppl)
+        
+        ! For capillaries: If EDEMA=.True. -> call SR calculate_ppl_edema that 
+        ! overwrites Ppl and sets Ppl to the for unit nu calculated value from 
+        ! ventilation model (for every ne that is mapped to nu)
+        if(elem_field(ne_group,ne).eq.1.0_dp)then
+            nu=elem_field(ne_unit,ne)
+            if(EDEMA)then
+                call calculate_ppl_edema(nu,Ppl)
+            endif
+        endif
+            
         Pblood=prq_solution(ny,1) !Pa
         Ptm=Pblood+Ppl     ! Pa
         if(nn.eq.1)R0=elem_field(ne_radius_in0,ne)
@@ -1111,17 +1129,20 @@ subroutine calculate_ppl_edema(nu,Ppl)
     use indices
     use arrays,only: dp,unit_field
     use diagnostics, only: enter_exit
-    integer, intent(in) :: nu
+    integer :: nu
     real(dp), intent(out) :: Ppl
     !Local variables
 
     character(len=60) :: sub_name
 
     sub_name = 'calculate_ppl_edema'
-
+    
+    write(*,*) "nu, nu_ppl", nu, nu_ppl
     call enter_exit(sub_name,1)
 
+    write(*,*) "before setting Ppl to unit_field:", unit_field(nu_ppl,nu), nu
     Ppl = unit_field(nu_ppl,nu)
+    write(*,*) "After setting Ppl = unit_field, Ppl:", Ppl
 
     call enter_exit(sub_name,2)
 end subroutine calculate_ppl_edema
