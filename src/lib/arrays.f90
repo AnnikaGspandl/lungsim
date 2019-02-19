@@ -55,6 +55,21 @@ module arrays
   real(dp),allocatable :: node_field(:,:)
   real(dp),allocatable :: scale_factors_2d(:,:)
 
+  !Perfusion arrays
+  real(dp), allocatable :: prq_solution(:,:)
+  integer, allocatable :: mesh_from_depvar(:,:,:)
+  integer, allocatable :: depvar_at_node(:,:,:)
+  integer, allocatable :: depvar_at_elem(:,:,:)
+  integer, dimension(0:2,2) :: depvar_totals
+  integer, allocatable :: SparseColPerf(:)
+  integer, allocatable :: SparseRowPerf(:)
+  integer, allocatable :: update_resistance_entries(:)
+  real(dp), allocatable :: SparseValPerf(:)
+  real(dp), allocatable :: RHSPerf(:)
+  real(dp), allocatable :: solver_solution(:)
+  logical, allocatable :: FIX(:)
+  integer :: NonZerosPerf,MatrixSizePerf
+
   logical,allocatable :: expansile(:)
 
   type capillary_bf_parameters
@@ -93,6 +108,8 @@ module arrays
          num_lines_2d, lines_2d, line_versn_2d, lines_in_elem, nodes_in_line, elems_2d, &
          elem_cnct_2d, elem_nodes_2d, elem_versn_2d, elem_lines_2d, elems_at_node_2d, arclength, &
          scale_factors_2d, parentlist,units_vent
+  public prq_solution, mesh_from_depvar, depvar_at_node,depvar_at_elem,depvar_totals,SparseColPerf,SparseRowPerf,&
+       update_resistance_entries,SparseValPerf,RHSPerf,solver_solution,FIX,NonZerosPerf,MatrixSizePerf
 
 contains
   subroutine set_node_field_value(row, col, value)
