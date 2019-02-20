@@ -25,29 +25,20 @@ contains
 !###################################################################################
 !
 !*evaluate_PRQ:* Solves for pressure and flow in a rigid or compliant tree structure
-  subroutine evaluate_prq(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc) !EDEMA
+  subroutine evaluate_prq(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc,perf_call_number) !EDEMA
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_PRQ" :: EVALUATE_PRQ
     use indices
     use capillaryflow,only: cap_flow_ladder
-    use arrays,only: dp,num_elems,num_nodes,elem_field,elem_nodes,elem_cnct,node_xyz,unit_field
+    use arrays,only: dp,num_elems,num_nodes,elem_field,elem_nodes,elem_cnct,node_xyz,unit_field,&
+       prq_solution, mesh_from_depvar, depvar_at_node,depvar_at_elem,depvar_totals,SparseColPerf,SparseRowPerf,&
+       update_resistance_entries,SparseValPerf,RHSPerf,solver_solution,FIX,NonZerosPerf,MatrixSizePerf
     use diagnostics, only: enter_exit
     !local variables
-    integer :: mesh_dof,depvar_types
-    integer, allocatable :: mesh_from_depvar(:,:,:)
-    integer, allocatable :: depvar_at_node(:,:,:)
-    integer, allocatable :: depvar_at_elem(:,:,:)
-    integer, dimension(0:2,2) :: depvar_totals
-    integer, allocatable :: SparseCol(:)
-    integer, allocatable :: SparseRow(:)
-    integer, allocatable :: update_resistance_entries(:)
-    real(dp), allocatable :: SparseVal(:)
-    real(dp), allocatable :: RHS(:)
-    integer :: num_vars,NonZeros,MatrixSize
-    integer :: AllocateStatus
+    integer :: mesh_dof,depvar_types,perf_call_number
 
-    real(dp), allocatable :: prq_solution(:,:),solver_solution(:)
+    integer :: num_vars
+    integer :: AllocateStatus
     real(dp) :: viscosity,density,inlet_bc,outlet_bc,inletbc,outletbc,grav_vect(3),gamma,total_resistance,ERR
-    logical, allocatable :: FIX(:)
     logical :: ADD=.FALSE.,CONVERGED=.FALSE.
     character(len=60) :: sub_name,mesh_type,vessel_type,mechanics_type,bc_type
     integer :: grav_dirn,no,depvar,KOUNT,nz,ne,SOLVER_FLAG,ne0,ne1,nj,nu
@@ -81,6 +72,8 @@ contains
 !Initialise ADD and CONVERGED to false as this does not happen automatically with multiple calls
 ADD = .FALSE.
 CONVERGED = .FALSE.
+
+write(*,*) 'In perfusion', perf_call_number
 
 vessel_type='elastic_g0_beta'
 mechanics_type='linear'
@@ -145,6 +138,7 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
 !! Allocate memory to depvar arrays
     mesh_dof=num_elems+num_nodes
     depvar_types=2 !pressure/flow
+if(perf_call_number.eq.1)then
     if(allocated(mesh_from_depvar))deallocate(mesh_from_depvar)
     allocate (mesh_from_depvar(0:2,mesh_dof,0:2), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for mesh_from_depvar array ***"
@@ -187,23 +181,26 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
 
 !! Calculate sparsity structure for solution matrices
     !Determine size of and allocate solution vectors/matrices
-    call calc_sparse_size(mesh_dof,depvar_at_elem,depvar_at_node,FIX,NonZeros,MatrixSize)
-    allocate (SparseCol(NonZeros), STAT = AllocateStatus)!Note we should be able to calculate the nonzeros and matrix size analtyically then we wont need this.
-    if (AllocateStatus /= 0) STOP "*** Not enough memory for SparseCol array ***"
-    allocate (SparseRow(MatrixSize+1), STAT = AllocateStatus)
-    if (AllocateStatus /= 0) STOP "*** Not enough memory for SparseRow array ***"
-    allocate (SparseVal(NonZeros), STAT = AllocateStatus)
-    if (AllocateStatus /= 0) STOP "*** Not enough memory for SparseVal array ***"
-    allocate (RHS(MatrixSize), STAT = AllocateStatus)
-    if (AllocateStatus /= 0) STOP "*** Not enough memory for RHS array ***"
-    allocate (solver_solution(MatrixSize), STAT = AllocateStatus)
+    call calc_sparse_size(mesh_dof,depvar_at_elem,depvar_at_node,FIX,NonZerosPerf,MatrixSizePerf)
+    allocate (SparseColPerf(NonZerosPerf), STAT = AllocateStatus)!Note we should be able to calculate the NonZerosPerf and matrix size analtyically then we wont need this.
+    if (AllocateStatus /= 0) STOP "*** Not enough memory for SparseColPerf array ***"
+    allocate (SparseRowPerf(MatrixSizePerf+1), STAT = AllocateStatus)
+    if (AllocateStatus /= 0) STOP "*** Not enough memory for SparseRowPerf array ***"
+    allocate (SparseValPerf(NonZerosPerf), STAT = AllocateStatus)
+    if (AllocateStatus /= 0) STOP "*** Not enough memory for SparseValPerf array ***"
+    allocate (RHSPerf(MatrixSizePerf), STAT = AllocateStatus)
+    if (AllocateStatus /= 0) STOP "*** Not enough memory for RHSPerf array ***"
+    allocate (solver_solution(MatrixSizePerf), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for solver_solution array ***"
     allocate (update_resistance_entries(num_elems), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for solver_solution array ***"
     !calculate the sparsity structure
     call calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem, &
-        depvar_at_node,NonZeros,MatrixSize,SparseCol,SparseRow,SparseVal,RHS, &
+        depvar_at_node,NonZerosPerf,MatrixSizePerf,SparseColPerf,SparseRowPerf,SparseValPerf,RHSPerf, &
         prq_solution,update_resistance_entries)
+  else
+    KOUNT = 1 !Resetting kount so BCs dont need to be reapplied and solution is not initialised
+  endif
 !!! --ITERATIVE LOOP--
     MIN_ERR=1.d10
     N_MIN_ERR=0
@@ -215,7 +212,7 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
     !if(EDEMA)then !take values from previous time step -> same code as if not first loop 
     !    do ne=1,num_elems !update for all ne
     !      nz=update_resistance_entries(ne)
-    !      SparseVal(nz)=-elem_field(ne_resist,ne) !Just updating resistance
+    !      SparseValPerf(nz)=-elem_field(ne_resist,ne) !Just updating resistance
     !    enddo
     !else
       if(KOUNT.eq.1)then!set up boundary conditions
@@ -240,14 +237,14 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
       else!Need to update just the resistance values in the solution matrix
         do ne=1,num_elems !update for all ne
           nz=update_resistance_entries(ne)
-          SparseVal(nz)=-elem_field(ne_resist,ne) !Just updating resistance
+          SparseValPerf(nz)=-elem_field(ne_resist,ne) !Just updating resistance
         enddo
       endif!first or subsequent iteration
     !endif
       
 !! ----CALL SOLVER----
-      call pmgmres_ilu_cr(MatrixSize, NonZeros, SparseRow, SparseCol, SparseVal, &
-         solver_solution, RHS, 500, 500,1.d-5,1.d-4,SOLVER_FLAG)
+      call pmgmres_ilu_cr(MatrixSizePerf, NonZerosPerf, SparseRowPerf, SparseColPerf, SparseValPerf, &
+         solver_solution, RHSPerf, 500, 500,1.d-5,1.d-4,SOLVER_FLAG)
        if(SOLVER_FLAG == 0)then 
           print *, 'Warning: pmgmres has reached max iterations. Solution may not be valid if this warning persists'
        elseif(SOLVER_FLAG ==2)then
@@ -258,10 +255,10 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
           deallocate (prq_solution, STAT = AllocateStatus)
           deallocate (FIX, STAT = AllocateStatus)
           deallocate (solver_solution, STAT = AllocateStatus)
-          deallocate (SparseCol, STAT = AllocateStatus)
-          deallocate (SparseVal, STAT = AllocateStatus)
-          deallocate (SparseRow, STAT = AllocateStatus)
-          deallocate (RHS, STAT = AllocateStatus)
+          deallocate (SparseColPerf, STAT = AllocateStatus)
+          deallocate (SparseValPerf, STAT = AllocateStatus)
+          deallocate (SparseRowPerf, STAT = AllocateStatus)
+          deallocate (RHSPerf, STAT = AllocateStatus)
           deallocate (update_resistance_entries, STAT=AllocateStatus)
           exit
        endif
@@ -290,7 +287,7 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
 
 !Put the ladder stuff here --> See solve11.f
          if(mesh_type.eq.'full_plus_ladder')then
-             write(*,*) "Do Loop over elements in ladder calculation:"
+             !write(*,*) "Do Loop over elements in ladder calculation:"
            do ne=1,num_elems
               if(elem_field(ne_group,ne).eq.1.0_dp)then!(elem_field(ne_group,ne)-1.0_dp).lt.TOLERANCE)then
                 ne0=elem_cnct(-1,1,ne)!upstream element number
@@ -305,12 +302,11 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
                 y_cap=node_xyz(2,elem_nodes(1,ne))
                 z_cap=node_xyz(3,elem_nodes(1,ne))
                 
-                      write(*,*) "Ladder Calculation: num_elems, ne, nu", num_elems, ne, nu
-                      write(*,*) "ne, elem_field(ne_unit,ne:)", ne, elem_field(ne_unit,ne)
+                      !write(*,*) "Ladder Calculation: num_elems, ne, nu", num_elems, ne, nu
+                      !write(*,*) "ne, elem_field(ne_unit,ne:)", ne, elem_field(ne_unit,ne)
                       
                 call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Ppl)                 
                 unit_field(nu_perfppl,nu)=Ppl
-                Pause
                 ! for Modelling of Edema:    
                     ! If EDEMA=.True. -> call SR calculate_ppl_edema that overwrites Ppl and sets Ppl to the 
                     ! for unit nu calculated value from ventilation model (for every ne that is mapped to nu)
@@ -328,7 +324,7 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
            enddo
          endif
         
-         ERR=ERR/MatrixSize !sum of error divided by no of unknown depvar
+         ERR=ERR/MatrixSizePerf !sum of error divided by no of unknown depvar
          if(ERR.LE.1.d-6.AND.(KOUNT.NE.1))then
            CONVERGED=.TRUE.
             print *,"Convergence achieved after",KOUNT,"iterations",ERR
@@ -347,19 +343,19 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2))
     call map_solution_to_mesh(prq_solution,depvar_at_elem,depvar_at_node,mesh_dof)
     !NEED TO UPDATE TERMINAL SOLUTION HERE. LOOP THO' UNITS AND TAKE FLOW AND PRESSURE AT TERMINALS
     call map_flow_to_terminals
-    
-    deallocate (mesh_from_depvar, STAT = AllocateStatus)
-    deallocate (depvar_at_elem, STAT = AllocateStatus)
-    deallocate (depvar_at_node, STAT = AllocateStatus)
-    deallocate (prq_solution, STAT = AllocateStatus)
-    deallocate (FIX, STAT = AllocateStatus)
-    deallocate (solver_solution, STAT = AllocateStatus)
-    deallocate (SparseCol, STAT = AllocateStatus)
-    deallocate (SparseVal, STAT = AllocateStatus)
-    deallocate (SparseRow, STAT = AllocateStatus)
-    deallocate (RHS, STAT = AllocateStatus)
-    deallocate (update_resistance_entries, STAT=AllocateStatus)
-
+    if(perf_call_number.eq.10)then
+        deallocate (mesh_from_depvar, STAT = AllocateStatus)
+        deallocate (depvar_at_elem, STAT = AllocateStatus)
+        deallocate (depvar_at_node, STAT = AllocateStatus)
+        deallocate (prq_solution, STAT = AllocateStatus)
+        deallocate (FIX, STAT = AllocateStatus)
+        deallocate (solver_solution, STAT = AllocateStatus)
+        deallocate (SparseColPerf, STAT = AllocateStatus)
+        deallocate (SparseValPerf, STAT = AllocateStatus)
+        deallocate (SparseRowPerf, STAT = AllocateStatus)
+        deallocate (RHSPerf, STAT = AllocateStatus)
+        deallocate (update_resistance_entries, STAT=AllocateStatus)
+    endif
     call enter_exit(sub_name,2)
   end subroutine evaluate_prq
 !
@@ -656,7 +652,7 @@ subroutine initialise_solution(pressure_in,pressure_out,cardiac_output,mesh_dof,
 !*calc_sparse_1d_tree:* Calculates sparsity structure for 1d tree problems
 
 subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
-        depvar_at_node,NonZeros,MatrixSize,SparseCol,SparseRow,SparseVal,RHS,&
+        depvar_at_node,NonZerosPerf,MatrixSizePerf,SparseColPerf,SparseRowPerf,SparseValPerf,RHSPerf,&
         prq_solution,update_resistance_entries)
 
 
@@ -673,11 +669,11 @@ subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
     integer,intent(in) :: depvar_at_elem(0:2,2,num_elems)
     integer,intent(in) :: depvar_at_node(num_nodes,0:2,2)
 
-    integer, intent(in) :: NonZeros,MatrixSize
-    integer, intent(inout) :: SparseCol(NonZeros)
-    integer, intent(inout) :: SparseRow(MatrixSize+1)
-    real(dp), intent(inout) :: SparseVal(NonZeros)
-    real(dp), intent(inout) :: RHS(MatrixSize)
+    integer, intent(in) :: NonZerosPerf,MatrixSizePerf
+    integer, intent(inout) :: SparseColPerf(NonZerosPerf)
+    integer, intent(inout) :: SparseRowPerf(MatrixSizePerf+1)
+    real(dp), intent(inout) :: SparseValPerf(NonZerosPerf)
+    real(dp), intent(inout) :: RHSPerf(MatrixSizePerf)
     real(dp), intent(inout) :: prq_solution(mesh_dof,2)
     integer, intent(inout) :: update_resistance_entries(num_elems)
 !local variables
@@ -691,15 +687,15 @@ subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
     call enter_exit(sub_name,1)
 !Initialise matrices and indices
 
-    SparseCol=0
-    SparseRow=1
-    SparseVal=0.0_dp
-    RHS=0.0_dp
+    SparseColPerf=0
+    SparseRowPerf=1
+    SparseValPerf=0.0_dp
+    RHSPerf=0.0_dp
     NPLIST=0
     NumDiag=0!number of diagonal entries
-    nzz=1 !position in SparseCol
-    nzz_val=1 !position in SparseVal
-    nzz_row=1 !position in SparseRow
+    nzz=1 !position in SparseColPerf
+    nzz_val=1 !position in SparseValPerf
+    nzz_row=1 !position in SparseRowPerf
     ost1=0!offset
     ost2=0!offset
 
@@ -719,7 +715,7 @@ subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
                 ost2=ost2+1 !count # of fixed BC
                endif!if depvar us fixed
             enddo!end looping over pervious cols
-            SparseCol(nzz)=(depvar2-ost2) !store the col # offset by ost2 -correct
+            SparseColPerf(nzz)=(depvar2-ost2) !store the col # offset by ost2 -correct
             nzz=nzz+1
             grav=0.d0
             if(elem_field(ne_group,ne).eq.1.0_dp)then
@@ -730,11 +726,11 @@ subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
               enddo
             endif
             if(nhs.EQ.1) THEN !row entry one
-              SparseVal(nzz_val)=1.0_dp
+              SparseValPerf(nzz_val)=1.0_dp
               nzz_val=nzz_val+1
-              RHS(nzz_row)=-prq_solution(depvar2,1)+grav
+              RHSPerf(nzz_row)=-prq_solution(depvar2,1)+grav
             elseif(nhs.EQ.2) THEN !row entry two
-              SparseVal(nzz_val)=-1.0_dp
+              SparseValPerf(nzz_val)=-1.0_dp
               nzz_val=nzz_val+1
             endif
           else!fix dependent variable is fixed
@@ -747,9 +743,9 @@ subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
               enddo
             endif
                  if(nhs.EQ.1) THEN
-                    RHS(nzz_row)=-prq_solution(depvar2,1)+grav
+                    RHSPerf(nzz_row)=-prq_solution(depvar2,1)+grav
                  elseif(nhs.EQ.2) THEN
-                    RHS(nzz_row)=prq_solution(depvar2,1)+grav
+                    RHSPerf(nzz_row)=prq_solution(depvar2,1)+grav
                  endif
              endif
         enddo!for each row entry,nhs
@@ -762,18 +758,18 @@ subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
                ost2=ost2+1 !count # of fixed BC
               endif
            enddo !ny
-           SparseCol(nzz)=(ny2c-ost2) !store column #
+           SparseColPerf(nzz)=(ny2c-ost2) !store column #
            nzz=nzz+1
-           SparseVal(nzz_val)=-elem_field(ne_resist,ne) !resistance components of dP=QR
+           SparseValPerf(nzz_val)=-elem_field(ne_resist,ne) !resistance components of dP=QR
            update_resistance_entries(ne)=nzz_val! needed?
            nzz_val=nzz_val+1
         else
-           RHS(nzz_row)=prq_solution(ny2c,1)
+           RHSPerf(nzz_row)=prq_solution(ny2c,1)
 
         endif !FIX
 
         nzz_row=nzz_row+1
-        SparseRow(nzz_row)=nzz !stores row #
+        SparseRowPerf(nzz_row)=nzz !stores row #
         !Now flow balance equation
         do nn=1,2 !balances at each node of ne
           FLOW_BALANCED=.FALSE. !initialise
@@ -795,7 +791,7 @@ subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
                       ost2=ost2+1 !count # of fixed BC
                     endif
                  enddo !ny
-                 SparseCol(nzz)=(ny2-ost2)
+                 SparseColPerf(nzz)=(ny2-ost2)
                  nzz=nzz+1
                        !! NEED TO TEST THIS PART!! CAPUKKARY STUFF
                        !if(NORD(5,ne2).EQ.0.OR.ne.EQ.ne2)  THEN !capillary
@@ -808,10 +804,10 @@ subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
                        !   flow_term=0.5d0
                        !endif
                  if(np.EQ.elem_nodes(2,ne2))then !end node
-                   SparseVal(nzz_val)=flow_term
+                   SparseValPerf(nzz_val)=flow_term
                    nzz_val=nzz_val+1
                  elseif(np.EQ.elem_nodes(1,ne2))then !start node
-                   SparseVal(nzz_val)=-flow_term
+                   SparseValPerf(nzz_val)=-flow_term
                    nzz_val=nzz_val+1
                  endif
                 endif!not fix
@@ -821,7 +817,7 @@ subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
           endif !elem_from_node(np,0).GT.1
           if((.NOT.FLOW_BALANCED).AND.(elems_at_node(np,0).GT.1))then
             nzz_row=nzz_row+1
-            SparseRow(nzz_row)=nzz !store the row #
+            SparseRowPerf(nzz_row)=nzz !store the row #
             NumDiag=NumDiag+1 !# entries on diagonal
           endif !.NOT.FLOW_BALANCED
         enddo !nn
@@ -838,7 +834,7 @@ subroutine calc_sparse_1dtree(density,FIX,grav_vect,mesh_dof,depvar_at_elem,&
 !
 !*calc_sparse_size:* Calculates sparsity sizes
 
-subroutine calc_sparse_size(mesh_dof,depvar_at_elem,depvar_at_node,FIX,NonZeros,MatrixSize)
+subroutine calc_sparse_size(mesh_dof,depvar_at_elem,depvar_at_node,FIX,NonZerosPerf,MatrixSizePerf)
     use indices
     use arrays,only: num_elems,elem_nodes,num_nodes,elems_at_node
     use diagnostics, only: enter_exit
@@ -846,7 +842,7 @@ subroutine calc_sparse_size(mesh_dof,depvar_at_elem,depvar_at_node,FIX,NonZeros,
     integer,intent(in) :: depvar_at_elem(0:2,2,num_elems)
     integer,intent(in) :: depvar_at_node(num_nodes,0:2,2)
     logical, intent(in) :: FIX(mesh_dof)
-    integer :: NonZeros,MatrixSize
+    integer :: NonZerosPerf,MatrixSizePerf
 !local variables
     integer :: ne,np1,depvar1,NumDiag,nhs,np2,depvar2,ost2,nzz,nzz_val,&
       nzz_row,ost1,ny2c,nn,np,ny2,ne2,noelem2,nonode
@@ -859,10 +855,10 @@ subroutine calc_sparse_size(mesh_dof,depvar_at_elem,depvar_at_node,FIX,NonZeros,
  
   NPLIST=0
   NumDiag=0!number of diagonal entries
-  !NonZeros=0
-  nzz=1 !position in SparseCol
-  nzz_val=1 !position in SparseVal
-  nzz_row=1 !position in SparseRow
+  !NonZerosPerf=0
+  nzz=1 !position in SparseColPerf
+  nzz_val=1 !position in SparseValPerf
+  nzz_row=1 !position in SparseRowPerf
   ost1=0!offset
   ost2=0!offset
   do ne=1,num_elems
@@ -927,8 +923,8 @@ subroutine calc_sparse_size(mesh_dof,depvar_at_elem,depvar_at_node,FIX,NonZeros,
      endif
 
   enddo 
-    NonZeros=nzz-1
-    MatrixSize=nzz_row-1
+    NonZerosPerf=nzz-1
+    MatrixSizePerf=nzz_row-1
     call enter_exit(sub_name,2)
   end subroutine calc_sparse_size
 
@@ -1137,12 +1133,12 @@ subroutine calculate_ppl_edema(nu,Ppl)
 
     sub_name = 'calculate_ppl_edema'
     
-    write(*,*) "nu, nu_ppl", nu, nu_ppl
+    !write(*,*) "nu, nu_ppl", nu, nu_ppl
     call enter_exit(sub_name,1)
 
-    write(*,*) "before setting Ppl to unit_field:", unit_field(nu_ppl,nu), nu
+    !write(*,*) "before setting Ppl to unit_field:", unit_field(nu_ppl,nu), nu
     Ppl = unit_field(nu_ppl,nu)
-    write(*,*) "After setting Ppl = unit_field, Ppl:", Ppl
+    !write(*,*) "After setting Ppl = unit_field, Ppl:", Ppl
 
     call enter_exit(sub_name,2)
 end subroutine calculate_ppl_edema

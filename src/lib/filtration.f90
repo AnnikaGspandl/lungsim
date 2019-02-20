@@ -380,8 +380,8 @@ module filtration
             perf_call_number = perf_call_number + 1
             
           ! Get capillary hydrostatic pressure P_c in mmH2O (-> perfusion model)
-            if(diags)write(*,*) "Call SR evaluate_prq from perfusion model", time,n,perf_call_number
-            call evaluate_prq(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc)
+            write(*,*) "Call SR evaluate_prq from perfusion model", time,n,perf_call_number
+            call evaluate_prq(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc,perf_call_number)
         
           ! Calculate transcapillary fluid flow J_v per time step according to Starling Equation in m^3
             
@@ -650,7 +650,7 @@ module filtration
     !    expiration_type = 'passive' ! or 'active'
     !    chest_wall_compliance = 0.2d6/98.0665_dp !(0.2 L/cmH2O --> mm^3/Pa)
 
-    open(fh, file='C:\Users\agsp886\functional-models\filtration\Parameters\params_evaluate_flow.txt')
+    open(fh, file='Parameters/params_evaluate_flow.txt')
 
     ! ios is negative if an end of record condition is encountered or if
     ! an endfile condition was detected.  It is positive if an error was
@@ -747,7 +747,7 @@ module filtration
 
     ios = 0
     line = 0
-    open(fh, file='C:\Users\agsp886\functional-models\filtration\Parameters\params_main.txt')
+    open(fh, file='Parameters/params_main.txt')
 
     ! ios is negative if an end of record condition is encountered or if
     ! an endfile condition was detected.  It is positive if an error was
@@ -992,6 +992,7 @@ module filtration
             unit_field(nu_filt,nunit) = L_p * unit_field(nu_SA,nunit) * &
                 ((unit_field(nu_blood_press,nunit) - node_field(nj_aw_press,np2)) &
                 - const) * dt
+
             
             ! Save Lymphatic Clearance in unit_field (later: calculate clearance for each unit)
             unit_field(nu_clearance,nunit) = c_L_t
@@ -1001,23 +1002,24 @@ module filtration
                 ! Check: Lymphatic Clearance c_L_t > Filtration?
                 if(c_L_t.gt.unit_field(nu_filt,nunit)) then
                  unit_field(nu_filt_cleared,nunit) = 0.0_dp         ! Filtration gets cleared by lymph flow
-                 write(*,*) "Filtration cleared by lymphatic clearance"
+                 !write(*,*) "Filtration cleared by lymphatic clearance"
                 else
                  unit_field(nu_filt_cleared,nunit) = unit_field(nu_filt,nunit) - c_L_t ! Lymph flow too low to clear filtration -> edema
-                 write(*,*) "Filtration not cleared by lymphatic clearance -> edema"
+                 !write(*,*) "Filtration not cleared by lymphatic clearance -> edema"
                 endif
             else
                 unit_field(nu_filt,nunit) = 0.0_dp
                 unit_field(nu_filt_cleared,nunit) = 0.0_dp  
-                write(*,*) 'Calculated filtration negative -> set to zero'
+                !write(*,*) 'Calculated filtration negative -> set to zero'
             endif
         
             if(diags)write(*,*) "Filtration without clearance: ", unit_field(nu_filt,nunit),unit_field(nu_blood_press,nunit),&
               node_field(nj_aw_press,np2),dt
 
-            write(*,*) "Lymphatic Clearance: ", c_L_t
-            write(*,*) "Filtration", unit_field(nu_filt,nunit)
-            write(*,*) "Pcap, Palv, const, Lp*SA", unit_field(nu_blood_press,nunit), node_field(nj_aw_press,np2), const, L_p * unit_field(nu_SA,nunit)        
+            !write(*,*) "Lymphatic Clearance: ", c_L_t
+            !write(*,*) "Filtration", unit_field(nu_filt,nunit)
+            !write(*,*) "Pcap, Palv, const, Lp*SA", unit_field(nu_blood_press,nunit),&
+            !     node_field(nj_aw_press,np2), const, L_p * unit_field(nu_SA,nunit)
           
             ! Summarized Filtration for whole lung (all units) per time step (after lymphatic clearance)
                 Jv_sum = unit_field(nu_filt_cleared,nunit) + Jv_sum

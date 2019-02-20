@@ -347,7 +347,8 @@ end subroutine export_parameters_edema_c
 ! 
 !#########################################################################
 !
-  subroutine export_terminal_starling_variables_c(EXNODEFILE, filename_len, name, name_len) bind(C, name="export_terminal_starling_variables_c")
+  subroutine export_terminal_starling_variables_c(EXNODEFILE, filename_len, name, name_len)&
+       bind(C, name="export_terminal_starling_variables_c")
 
     use iso_c_binding, only: c_ptr
     use utils_c, only: strncpy
