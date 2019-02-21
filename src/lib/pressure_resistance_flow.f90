@@ -33,9 +33,10 @@ contains
        prq_solution, mesh_from_depvar, depvar_at_node,depvar_at_elem,depvar_totals,SparseColPerf,SparseRowPerf,&
        update_resistance_entries,SparseValPerf,RHSPerf,solver_solution,FIX,NonZerosPerf,MatrixSizePerf
     use diagnostics, only: enter_exit
+    use filtration, only: timestep_max
     !local variables
     integer :: mesh_dof,depvar_types,perf_call_number
-
+    
     integer :: num_vars
     integer :: AllocateStatus
     real(dp) :: viscosity,density,inlet_bc,outlet_bc,inletbc,outletbc,grav_vect(3),gamma,total_resistance,ERR
@@ -343,7 +344,7 @@ if(perf_call_number.eq.1)then
     call map_solution_to_mesh(prq_solution,depvar_at_elem,depvar_at_node,mesh_dof)
     !NEED TO UPDATE TERMINAL SOLUTION HERE. LOOP THO' UNITS AND TAKE FLOW AND PRESSURE AT TERMINALS
     call map_flow_to_terminals
-    if(perf_call_number.eq.10)then
+    if(perf_call_number.eq.timestep_max)then
         deallocate (mesh_from_depvar, STAT = AllocateStatus)
         deallocate (depvar_at_elem, STAT = AllocateStatus)
         deallocate (depvar_at_node, STAT = AllocateStatus)

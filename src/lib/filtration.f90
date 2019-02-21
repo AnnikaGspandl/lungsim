@@ -13,7 +13,8 @@ module filtration
   implicit none
   
   !Module parameters
-
+    integer :: timestep_max
+    real(dp),allocatable :: average_dt(:,:)
   !Module types
 
   !Module variables
@@ -21,6 +22,7 @@ module filtration
   !Interfaces
   private
   public calculate_flow
+  public timestep_max, average_dt
   !public evaluate_vent_edema
 
     contains
@@ -124,7 +126,7 @@ module filtration
     logical :: CONTINUE,converged
     logical :: diags
     character(len=37) :: filenametime
-    character(len=27) :: filename
+    character(len=27) :: filename1
     character(len=10) :: timestep_char
 
     character(len=60) :: sub_name
@@ -194,6 +196,8 @@ module filtration
 
     allocate(check_vol(num_brths))
     check_vol = 0.0_dp
+    
+    timestep_max = T_interval/dt
     
 !!! calculate key variables from the boundary conditions/problem parameters
     Texpn = T_interval / (1.0_dp+i_to_e_ratio)
@@ -387,20 +391,28 @@ module filtration
             
             call update_filtration_edema(L_p, sigma, pi_c, pi_alv, c_L, dt, Jv_sum)
             
-          ! Calculate average values for terminal export file
+          ! Calculate average values over time for terminal export file
             call calculate_terminal_exports(timestep_int)
+          
+          ! Calculate average values over whole lung for time export file
+                call calculate_average_exports(timestep_int)
             
-          ! Define name of export file in this time step
-            filename = '_starling_variables.exnode'
-            write(*,*) filename
+          ! Define name of exnode export file in this time step
+            filename1 = '_starling_variables.exnode'
+            write(*,*) filename1
             write (timestep_char, "(A8,I2)")  "Timestep", timestep_int
             timestep_char = trim(timestep_char)
-            filenametime =  timestep_char//filename
-            write(*,*) filenametime
-            
-          ! Export all the values that go into the Starling equation
+            filenametime =  timestep_char//filename1
+            write(*,*) filenametime           
+          ! Export all the values that go into the Starling equation for each unit
             call export_starling_variables(filenametime,'filt_model')!(time, ttime,Jv_sum)
-          
+            
+          ! Export average values over whole lung per time step in last timestep
+                if(timestep_int.eq.timestep_max)then
+                    ! Export array average_dt in file
+                    deallocate(average_dt)
+                endif
+                      
             endif   
           endif
          
@@ -650,7 +662,7 @@ module filtration
     !    expiration_type = 'passive' ! or 'active'
     !    chest_wall_compliance = 0.2d6/98.0665_dp !(0.2 L/cmH2O --> mm^3/Pa)
 
-    open(fh, file='Parameters/params_evaluate_flow.txt')
+    open(fh, file='C:\Users\agsp886\functional-models\filtration\Parameters/params_evaluate_flow.txt')
 
     ! ios is negative if an end of record condition is encountered or if
     ! an endfile condition was detected.  It is positive if an error was
@@ -747,7 +759,7 @@ module filtration
 
     ios = 0
     line = 0
-    open(fh, file='Parameters/params_main.txt')
+    open(fh, file='C:\Users\agsp886\functional-models\filtration\Parameters/params_main.txt')
 
     ! ios is negative if an end of record condition is encountered or if
     ! an endfile condition was detected.  It is positive if an error was
@@ -1028,7 +1040,77 @@ module filtration
         
     call enter_exit(sub_name,2)
 
-  end subroutine update_filtration_edema    
+  end subroutine update_filtration_edema
+  
+   !!!###################################################################################
+ 
+   subroutine calculate_average_exports(timestep_int)!
+  !!!   Calculates the summarized values Pcap, Ppl (perfusion model and ventilation model), Palv,&
+  !     Filtration (with/without clearance) for one whole breath and the summarized filtration &
+  !     after clearance for whole lung
+          
+    use arrays,only: dp,num_units,unit_field, elem_nodes,node_field,units
+    use diagnostics, only: enter_exit,get_diagnostics_on
+    use indices!,only: nu_SA,nu_rad,nu_filt,nu_filt_cleared
+    
+    implicit none
+
+    ! In-/Output
+    integer,intent(in) :: timestep_int  ! Current timestep
+        
+    integer :: nunit, ne, np2
+    logical :: diags=.True.
+    
+    
+    integer :: Jv_av, Palv_av, Pcap_av, Pplperf_av, Pplvent_av, unit_vol, unit_comp ! indices for array
+    
+
+    character(len=60) :: sub_name
+
+    ! ###########################################################################
+
+    sub_name = 'calculate_average_exports'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_on(diags)
+   
+    Jv_av = 1
+    Palv_av = 2
+    Pcap_av = 3
+    Pplperf_av = 4
+    Pplvent_av = 5
+    unit_vol = 6
+    unit_comp = 7
+    
+    if(.NOT.allocated(average_dt)) allocate(average_dt(num_units,7))
+    
+    ! calculate average values for all variables over whole lung in this timestep
+        average_dt(timestep_int,:) = 0.0_dp
+
+        do nunit=1,num_units
+           ne=units(nunit)
+           np2=elem_nodes(2,ne)
+           ! Cleared Filtration
+           average_dt(timestep_int,Jv_av) = average_dt(timestep_int,Jv_av) + unit_field(nu_filt_cleared,nunit)
+           ! Alveolar Pressure
+           average_dt(timestep_int,Palv_av) = average_dt(timestep_int,Palv_av) + node_field(nj_aw_press,np2)
+           ! Capillary Pressure
+           average_dt(timestep_int,Pcap_av) = average_dt(timestep_int,Pcap_av) + unit_field(nu_blood_press,nunit)
+           ! Pleural Pressure from perfusion model
+           average_dt(timestep_int,Pplperf_av) = average_dt(timestep_int,Pplperf_av) + unit_field(nu_perfppl,nunit)
+           ! Pleural Pressure from ventilation model
+           average_dt(timestep_int,Pplvent_av) = average_dt(timestep_int,Pplvent_av) + unit_field(nu_ppl,nunit)
+           ! Unit volume
+           average_dt(timestep_int,unit_vol) = average_dt(timestep_int,unit_vol) + unit_field(nu_vol,nunit)
+           ! Unit Compliance
+           average_dt(timestep_int,unit_comp) = average_dt(timestep_int,unit_comp) + unit_field(nu_comp,nunit)
+           
+        enddo !noelem
+        average_dt = average_dt/num_units
+                   
+        
+    call enter_exit(sub_name,2)
+
+  end subroutine calculate_average_exports  
   
  !!!###################################################################################
  
