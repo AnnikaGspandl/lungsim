@@ -28,7 +28,7 @@ module indices
   integer :: num_nu,nu_vol,nu_comp,nu_conc2,nu_Vdot0,nu_Vdot1, &
        nu_Vdot2,nu_dpdt,nu_pe,nu_vt,nu_air_press,nu_rad,nu_SA,nu_ppl,nu_conc1,nu_vent,&
        nu_vd,nu_perf,nu_blood_press, nu_filt, nu_filt_cleared, nu_filt_cleared_sum, nu_clearance,&
-       nu_perfppl, nu_blood_press_av, nu_perfppl_av, nu_ppl_av, nu_filt_av, nu_filt_cleared_av
+       nu_perfppl, nu_blood_press_av, nu_perfppl_av, nu_ppl_av, nu_filt_av, nu_filt_cleared_av, nu_lp
   !indices for gas exchange field
 ! indices for gasex_field
   integer,parameter :: num_gx = 12
@@ -63,7 +63,7 @@ public num_nu,nu_vol,nu_comp, nu_conc2,nu_Vdot0,nu_Vdot1, &
        nu_conc1,nu_vent,nu_vd,&
        nu_perf,nu_blood_press, nu_filt, nu_filt_cleared,nu_filt_cleared_sum,&
        nu_clearance, nu_perfppl, nu_blood_press_av, nu_perfppl_av, nu_ppl_av, &
-       nu_filt_av, nu_filt_cleared_av
+       nu_filt_av, nu_filt_cleared_av, nu_lp
 
 public num_gx, ng_p_alv_o2,ng_p_alv_co2,ng_p_ven_o2,ng_p_ven_co2, &
        ng_p_cap_o2, ng_p_cap_co2,ng_source_o2,ng_source_co2, &
@@ -305,6 +305,7 @@ contains
     num_nu=2
     nu_perf=1
     nu_blood_press=2
+    nu_perfppl=3
 
      call enter_exit(sub_name,2)
   end subroutine perfusion_indices  
@@ -349,7 +350,7 @@ contains
     ne_group=16!Groups vessels into arteries (field=0), capillaries (field=1) and veins(field=2)
     ne_unit=17
     ! indices for unit_field
-    num_nu=25 ! number of unit fields
+    num_nu=26 ! number of unit fields
     !Ventilation
     nu_vol=1
     nu_comp=2
@@ -380,6 +381,7 @@ contains
     nu_ppl_av=23
     nu_filt_av=24
     nu_filt_cleared_av=25
+    nu_lp=26 ! hydraulic conductivity gradient
     
     call enter_exit(sub_name,2)
   end subroutine filtration_indices

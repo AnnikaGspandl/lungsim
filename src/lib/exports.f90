@@ -566,6 +566,11 @@ contains
              write(10,'('' 3) pressure, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+             VALUE_INDEX=VALUE_INDEX+1
+             !Pleural pressure
+             write(10,'('' 5) pleural pressure gradient (perfusion model), field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
           endif !FIRST_NODE
           !***      write the node
           write(10,'(1X,''Node: '',I12)') np
@@ -574,6 +579,7 @@ contains
           enddo !njj2
            write(10,'(2X,4(1X,F12.6))') (unit_field(nu_perf,NOLIST)) !flow
            write(10,'(2X,4(1X,F12.6))') (unit_field(nu_blood_press,NOLIST)) !pressure
+           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_perfppl,NOLIST)) !pleural pressure (gradient from perfusion model)
           FIRST_NODE=.FALSE.
           np_last=np
        enddo !nolist (np)
@@ -848,7 +854,7 @@ contains
           !*** Write the field information
           VALUE_INDEX=1
           if(FIRST_NODE)THEN
-             write(10,'( '' #Fields=11'' )')
+             write(10,'( '' #Fields=12'' )')
              write(10,'('' 1) coordinates, coordinate, rectangular cartesian, #Components=3'')')
              do nj=1,3
                 if(nj.eq.1) write(10,'(2X,''x.  '')',advance="no")
@@ -862,48 +868,53 @@ contains
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
              VALUE_INDEX=VALUE_INDEX+1
+             !Unit Compliance
+             write(10,'('' 3) Unit Compliance, field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+             VALUE_INDEX=VALUE_INDEX+1
              !Capillary Pressure
-             write(10,'('' 3) capillary pressure, field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 4) capillary pressure, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
              VALUE_INDEX=VALUE_INDEX+1
              !Pleural pressure
-             write(10,'('' 4) pleural pressure gradient (perfusion model), field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 5) pleural pressure gradient (perfusion model), field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
              VALUE_INDEX=VALUE_INDEX+1
              !Pleural pressure
-             write(10,'('' 5) pleural pressure (ventilation model), field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 6) pleural pressure (ventilation model), field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
              VALUE_INDEX=VALUE_INDEX+1
              !Alveolar Pressure
-             write(10,'('' 6) Alveolar pressure, field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 7) Alveolar pressure, field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+             VALUE_INDEX=VALUE_INDEX+1
+             !Tidal volume
+             write(10,'('' 8) tidal volume, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
              VALUE_INDEX=VALUE_INDEX+1
              !Filtration without clearance
-             write(10,'('' 7) Filtration without clearance, field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 9) Filtration without clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
-                          VALUE_INDEX=VALUE_INDEX+1
-            !Lymphatic Clearance
-             write(10,'('' 8) Lymphatic Clearance, field, rectangular cartesian, #Components=1'')')
+             VALUE_INDEX=VALUE_INDEX+1
+             !Lymphatic Clearance
+             write(10,'('' 10) Lymphatic Clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
-                          VALUE_INDEX=VALUE_INDEX+1
+             VALUE_INDEX=VALUE_INDEX+1
              !Filtration after lymphatic clearance
-             write(10,'('' 9) Filtration after lymphatic clearance, field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 11) Filtration after lymphatic clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
-                          VALUE_INDEX=VALUE_INDEX+1
-            !Unit Volume
-             write(10,'('' 10) Unit Volume, field, rectangular cartesian, #Components=1'')')
-             write(10,'(2X,''1.  '')',advance="no")
-             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
-                          VALUE_INDEX=VALUE_INDEX+1
-            !Unit Compliance
-             write(10,'('' 11) Unit Compliance, field, rectangular cartesian, #Components=1'')')
+             VALUE_INDEX=VALUE_INDEX+1
+             !Summarized filtration after clearance
+             write(10,'('' 12) Summarized filtration without clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
           endif !FIRST_NODE
@@ -913,15 +924,16 @@ contains
              write(10,'(2X,4(1X,F12.6))') (node_xyz(nj,np))      !Coordinates
           enddo !njj2
            write(10,'(2X,4(1X,F12.6))') (unit_field(nu_SA,NOLIST)) !Surface Area
+           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_comp,NOLIST)) !Unit Compliance
            write(10,'(2X,4(1X,F12.6))') (unit_field(nu_blood_press,NOLIST)) !capillary pressure
            write(10,'(2X,4(1X,F12.6))') (unit_field(nu_perfppl,NOLIST)) !pleural pressure (gradient from perfusion model)
            write(10,'(2X,4(1X,F12.6))') (unit_field(nu_ppl,NOLIST)) !pleural pressure (ventilation model)
            write(10,'(2X,4(1X,F12.6))') (node_field(nj_aw_press,np)) !Alveolar pressure
+           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_vt,nolist))    !Tidal volume
            write(10,'(2X,4(1X,F12.10))') (unit_field(nu_filt,NOLIST)) !filtration without clearance
            write(10,'(2X,4(1X,F12.10))') (unit_field(nu_clearance,NOLIST)) !Lymphatic Clearance
            write(10,'(2X,4(1X,F12.10))') (unit_field(nu_filt_cleared,NOLIST)) !filtration after clearance
-           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_vol,NOLIST)) !Unit volume
-           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_comp,NOLIST)) !Unit Compliance
+           write(10,'(2X,4(1X,F12.10))') (unit_field(nu_filt_cleared_sum,NOLIST)) !summarized filtration after clearance
           FIRST_NODE=.FALSE.
           np_last=np
        enddo !nolist (np)
@@ -964,7 +976,7 @@ contains
           !*** Write the field information
           VALUE_INDEX=1
           if(FIRST_NODE)THEN
-             write(10,'( '' #Fields=9'' )')
+             write(10,'( '' #Fields=11'' )')
              write(10,'('' 1) coordinates, coordinate, rectangular cartesian, #Components=3'')')
              do nj=1,3
                 if(nj.eq.1) write(10,'(2X,''x.  '')',advance="no")
@@ -997,19 +1009,29 @@ contains
              write(10,'('' 6) Average filtration without clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
-                          VALUE_INDEX=VALUE_INDEX+1
+             VALUE_INDEX=VALUE_INDEX+1
             !Lymphatic Clearance
              write(10,'('' 7) Lymphatic Clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
-                          VALUE_INDEX=VALUE_INDEX+1
+             VALUE_INDEX=VALUE_INDEX+1
              !Average filtration after lymphatic clearance
              write(10,'('' 8) Average filtration after lymphatic clearance, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
-                          VALUE_INDEX=VALUE_INDEX+1
+             VALUE_INDEX=VALUE_INDEX+1
              !Summarized filtration without clearance
-             write(10,'('' 9) Summarized filtration without clearance, field, rectangular cartesian, #Components=1'')')
+             write(10,'('' 9) Summarized filtration after clearance, field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+             VALUE_INDEX=VALUE_INDEX+1
+             !Tidal volume
+             write(10,'('' 10) tidal volume, field, rectangular cartesian, #Components=1'')')
+             write(10,'(2X,''1.  '')',advance="no")
+             write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
+             VALUE_INDEX=VALUE_INDEX+1
+             !hydraulic conductivity
+             write(10,'('' 11) hydraulic conductivity in *10^-8, field, rectangular cartesian, #Components=1'')')
              write(10,'(2X,''1.  '')',advance="no")
              write(10,'(''Value index='',I1,'', #Derivatives='',I1)',advance="yes") VALUE_INDEX,0
           endif !FIRST_NODE
@@ -1026,6 +1048,8 @@ contains
            write(10,'(2X,4(1X,F12.10))') (unit_field(nu_clearance,NOLIST)) !Lymphatic Clearance
            write(10,'(2X,4(1X,F12.10))') (unit_field(nu_filt_cleared_av,NOLIST)) !average filtration after clearance
            write(10,'(2X,4(1X,F12.10))') (unit_field(nu_filt_cleared_sum,NOLIST)) !summarized filtration after clearance
+           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_vt,nolist))    !Tidal volume
+           write(10,'(2X,4(1X,F12.6))') (unit_field(nu_lp,nolist)*1e8_dp)    !hydraulic conductivity L_p
           FIRST_NODE=.FALSE.
           np_last=np
        enddo !nolist (np)

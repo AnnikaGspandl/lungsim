@@ -20,7 +20,7 @@ module pressure_resistance_flow
 
   !Interfaces
   private
-  public evaluate_prq!, evaluate_prq_edema
+  public evaluate_prq
 contains
 !###################################################################################
 !
@@ -33,18 +33,18 @@ contains
        prq_solution, mesh_from_depvar, depvar_at_node,depvar_at_elem,depvar_totals,SparseColPerf,SparseRowPerf,&
        update_resistance_entries,SparseValPerf,RHSPerf,solver_solution,FIX,NonZerosPerf,MatrixSizePerf
     use diagnostics, only: enter_exit
-    use filtration, only: timestep_max
+    !use filtration, only: timestep_max
     !local variables
     integer :: mesh_dof,depvar_types,perf_call_number
     
-    integer :: num_vars
+    integer :: num_vars, timestep_max
     integer :: AllocateStatus
     real(dp) :: viscosity,density,inlet_bc,outlet_bc,inletbc,outletbc,grav_vect(3),gamma,total_resistance,ERR
     logical :: ADD=.FALSE.,CONVERGED=.FALSE.
     character(len=60) :: sub_name,mesh_type,vessel_type,mechanics_type,bc_type
     integer :: grav_dirn,no,depvar,KOUNT,nz,ne,SOLVER_FLAG,ne0,ne1,nj,nu
     real(dp) :: MIN_ERR,N_MIN_ERR,elasticity_parameters(3),mechanics_parameters(2),grav_factor,P1
-    real(dp) :: P2,Q01,Rin,Rout,x_cap,y_cap,z_cap,Ppl,LPM_R,Lin,Lout
+    real(dp) :: P2,Q01,Rin,Rout,x_cap,y_cap,z_cap,Ppl,Pplperf,LPM_R,Lin,Lout
     
     ! Define logical EDEMA for if statements regarding Ppl (not yet implemented as input)
     !                EDEMA =.TRUE. for modeling edema -> Ppl calculated via ventilation model
@@ -75,6 +75,7 @@ ADD = .FALSE.
 CONVERGED = .FALSE.
 
 write(*,*) 'In perfusion', perf_call_number
+timestep_max = 80
 
 vessel_type='elastic_g0_beta'
 mechanics_type='linear'
@@ -306,14 +307,14 @@ if(perf_call_number.eq.1)then
                       !write(*,*) "Ladder Calculation: num_elems, ne, nu", num_elems, ne, nu
                       !write(*,*) "ne, elem_field(ne_unit,ne:)", ne, elem_field(ne_unit,ne)
                       
-                call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Ppl)                 
-                unit_field(nu_perfppl,nu)=Ppl
+                call calculate_ppl(elem_nodes(1,ne),grav_vect,mechanics_parameters,Pplperf)           
+                unit_field(nu_perfppl,nu)=Pplperf
                 ! for Modelling of Edema:    
                     ! If EDEMA=.True. -> call SR calculate_ppl_edema that overwrites Ppl and sets Ppl to the 
                     ! for unit nu calculated value from ventilation model (for every ne that is mapped to nu)
                     if(EDEMA)then
                         call calculate_ppl_edema(nu,Ppl)
-                    endif
+                    endif            
                     
                 Lin=elem_field(ne_length,ne0)
                 Lout=elem_field(ne_length,ne1)
@@ -968,7 +969,7 @@ subroutine calc_press_area(grav_vect,KOUNT,depvar_at_node,prq_solution,&
         if(nn.eq.2) np=elem_nodes(2,ne)
         ny=depvar_at_node(np,0,1)
         
-        call calculate_ppl(np,grav_vect,mechanics_parameters,Ppl)
+        !call calculate_ppl(np,grav_vect,mechanics_parameters,Ppl)
         
         ! For capillaries: If EDEMA=.True. -> call SR calculate_ppl_edema that 
         ! overwrites Ppl and sets Ppl to the for unit nu calculated value from 
@@ -979,7 +980,7 @@ subroutine calc_press_area(grav_vect,KOUNT,depvar_at_node,prq_solution,&
                 call calculate_ppl_edema(nu,Ppl)
             endif
         endif
-            
+        
         Pblood=prq_solution(ny,1) !Pa
         Ptm=Pblood+Ppl     ! Pa
         if(nn.eq.1)R0=elem_field(ne_radius_in0,ne)
@@ -1092,14 +1093,14 @@ end subroutine map_flow_to_terminals
 !
 !*calculate_ppl* calculates pleural pressure at a node
 !
-subroutine calculate_ppl(np,grav_vect,mechanics_parameters,Ppl)
+subroutine calculate_ppl(np,grav_vect,mechanics_parameters,Pplperf)
     use indices
     use arrays,only: dp,node_xyz
     use diagnostics, only: enter_exit
     integer, intent(in) :: np
     real(dp), intent(in) :: mechanics_parameters(2)
     real(dp), intent(in) :: grav_vect(3)
-    real(dp), intent(out) :: Ppl
+    real(dp), intent(out) :: Pplperf
     !Local variables
     integer :: nj
     real(dp) :: G_PLEURAL,HEIGHT(3)
@@ -1109,12 +1110,13 @@ subroutine calculate_ppl(np,grav_vect,mechanics_parameters,Ppl)
 
     call enter_exit(sub_name,1)
         G_PLEURAL=0.0_dp    !gravitational force
+           
         do nj=1,3
           HEIGHT(nj)=node_xyz(nj,np)-node_xyz(nj,1) !ARC - where to put grav reference height?
           G_PLEURAL=G_PLEURAL+mechanics_parameters(2)*grav_vect(nj)*9810.d0*HEIGHT(nj) !kg
         enddo
-        Ppl=mechanics_parameters(1)-G_PLEURAL !Pa
-
+        Pplperf=mechanics_parameters(1)-G_PLEURAL !Pa
+        
     call enter_exit(sub_name,2)
 end subroutine calculate_ppl
 
@@ -1144,50 +1146,7 @@ subroutine calculate_ppl_edema(nu,Ppl)
     call enter_exit(sub_name,2)
 end subroutine calculate_ppl_edema
 
-!!!!#################################################################################
-!! 
-!!*evaluate_prq_edema:* --- only called by Filtration.f90 when Modeling Edema ---
-!! This subroutine calls main subroutine evaluate_prq of (this) perfusion model with 
-!! modified settings:    - modified value for Ppl (calculated by ventilation model)
-!!                       - logic EDEMA for if statements -> not implemented yet
-!!                       - Output: Pcap
-!  subroutine evaluate_prq_edema(mesh_type,grav_dirn,grav_factor,bc_type,inlet_bc,outlet_bc) !EDEMA, Ppl,Pcap or P1/P2
-!  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_PRQ_EDEMA" :: EVALUATE_PRQ_EDEMA
-!    use indices
-!    !use capillaryflow,only: cap_flow_ladder
-!    use arrays,only: dp!,num_elems,num_nodes,elem_field,elem_nodes,elem_cnct,node_xyz
-!    use diagnostics, only: enter_exit
-!    !use geometry, only: add_matching_mesh,append_units,define_node_geometry, define_1d_elements,define_rad_from_geom!!
-!
-!    !In-/Outputs
-!    real(dp) :: inlet_bc,outlet_bc
-!    character(len=60) :: mesh_type,bc_type
-!    integer :: grav_dirn
-!    real(dp) :: grav_factor
-!    !logical :: EDEMA
-!    
-!    !local variables
-!    !real(dp) :: inlet_rad_ven,mpa_rad,s_ratio, s_ratio_ven
-!    character(len=60) :: sub_name
-!    !character :: name,order_options1,order_options2,order_system
-!    
-!  ! ###########################################################################
-!    
-!    sub_name = 'evaluate_prq_edema'
-!    call enter_exit(sub_name,1)
-!    
-!    ! Define Settings (normally defined in perfusion.py, but this SR is not called by perfusion.py 
-!    ! but by filtration.py -> all settings loaded by filtration.py = ventilation settings
-!    ! => perfusion settings need to be defined here)     
-!    ! Read in geometry files -> not necessary for forst approach because airway and blood vessel tree have essentially the same strucutre
-!   
-!    ! call main subroutine of perfusion model evaluate_prq to run perfusion model
-!    call evaluate_prq(mesh_type, grav_dirn, grav_factor, bc_type, inlet_bc, outlet_bc) !EDEMA
-!    !write(*,*) "This is the SR evaluate_prq_edema"
-!    call enter_exit(sub_name,2)
-!    
-!  end subroutine evaluate_prq_edema
-  
+
   
   
 end module pressure_resistance_flow
